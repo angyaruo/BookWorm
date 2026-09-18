@@ -6,7 +6,7 @@
 ### *Your miniature literary companion, vocabulary savant, and in-chat research desk*
 
 [![Lumiverse](https://img.shields.io/badge/Lumiverse-Spindle_Extension-22c55e?style=for-the-badge&logo=gnome&logoColor=white)](#)
-[![Version](https://img.shields.io/badge/Version-1.1.0-8c6d37?style=for-the-badge)](#)
+[![Version](https://img.shields.io/badge/Version-1.1.1-8c6d37?style=for-the-badge)](#)
 [![Theme](https://img.shields.io/badge/Aesthetic-Grimoire_Tome-ffd166?style=for-the-badge&labelColor=181412)](#)
 
 <p align="center">
