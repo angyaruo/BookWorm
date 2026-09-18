@@ -1,33 +1,61 @@
-# BookWorm 🐛
-*Your miniature literary companion, vocabulary savant, and in-chat research desk for Lumiverse.*
+<div align="center">
 
-BookWorm is a dedicated utility extension designed to banish writer's block, rescue forgotten vocabulary, and fetch domain-specific knowledge on the fly without breaking character or polluting your narrative context. Guided by a tiny worm in a graduation cap, it perches right inside your composer to provide instant creative support whenever inspiration falters.
+<!-- Upload your logo to the repo root as logo.png or use your Catbox link -->
+<img src="logo.png" alt="BookWorm Logo" width="340" />
 
-**Core Features**
+# 🐛 BookWorm
+### *Your miniature literary companion, vocabulary savant, and in-chat research desk*
 
-* **Tip of the Tongue:** Describe that hazy, half-remembered feeling or concept lingering in your head, and BookWorm will identify the exact word you are hunting for.
-* **Creative Thesaurus:** Break repetitive phrasing and spice up dialogue with curated synonyms, vivid descriptors, and sensory language tailored to your genre.
-* **Domain Research Desk:** Query domain knowledge instantly—from medieval apothecary tools to starship reactor protocols—so your personas can sound like genuine experts.
-* **Narrative Consultant ("What Next?"):** Unsure how to react to a scene? BookWorm peeks at the recent story turn and suggests 3–4 compelling, logical in-character actions to keep the story rolling.
+[![Lumiverse](https://img.shields.io/badge/Lumiverse-Spindle_Extension-22c55e?style=for-the-badge&logo=gnome&logoColor=white)](#)
+[![Version](https://img.shields.io/badge/Version-1.0.0-8c6d37?style=for-the-badge)](#)
+[![Theme](https://img.shields.io/badge/Aesthetic-Grimoire_Tome-ffd166?style=for-the-badge&labelColor=181412)](#)
 
-* **One-Click Insertion:** Seamlessly push any suggested word, phrase, or drafted idea directly into your active Lumiverse composer with a single click.
+<p align="center">
+  <b>Tired of breaking character to look up synonyms?</b><br>
+  Meet <b>Buggy</b>—a tiny scholar perched on your composer rim ready to feed your roleplay with domain facts, vocabulary, and narrative direction without polluting your chat memory.
+</p>
 
+---
 
-**Why BookWorm?**
+</div>
 
-* **Zero Prompt Bleed:** Every query executes through isolated quiet generations, keeping your main roleplay memory clean, hallucination-free, and unbloated.
+## 📜 Desk Capabilities
 
-* **Connection Routing:** Point BookWorm to lightweight, dirt-cheap models (such as Gemini Flash or Claude Haiku) so you never burn expensive flagship tokens on dictionary lookups.
+| Department | Buggy's Duties |
+| :--- | :--- |
+| **💡 Tip of the Tongue** | Describe that hazy, half-remembered feeling and Buggy will recover the exact word with definitions and fiction examples. |
+| **📖 Creative Thesaurus** | Spice up repetitive prose with nuanced alternatives grouped by register (Gothic, Sensual, Blunt, Whimsical). |
+| **🔍 Domain Research** | Query period-accurate facts, 18th-century poison brewing, apothecary tools, or sci-fi physics in seconds. |
+| **🎭 Consultant ("What Next?")** | Overcome writer's block. Buggy peeks at the recent scene turn and suggests 3–4 actionable character beats. |
+| **🌐 Literary Translator** | Translate character dialogue into foreign tongues, thieves' cant, or fantasy vernacular while preserving emotional subtext. |
 
-* **Seamless Integration:** Runs natively inside Lumiverse’s Bun worker runtime with automatic theme color inheritance and zero external bloat.
+---
 
+## 🍃 Meet Buggy
 
-**Installation**
+Buggy is fully animated to mirror your writing flow:
+* **Sleeping Loaf ( ˘ω˘ )zzZ:** Loafs quietly on the top border of your composer until summoned.
+* **Awake Scholar (★ω★):** Pops upright the moment you click him to open the Grimoire desk.
+* **Book Reading:** Flips through archives while you browse tabs and type your queries.
+* **Thinking Bubble:** Deep in thought while your chosen model synthesizes notes.
+* **Singing Joy:** Celebrates with musical notes once your advice is delivered!
+* **Leaf Munching (Easter Egg):** Hover over or click Buggy inside the desk to feed him fresh foliage.
+
+---
+
+## 🛠️ Quick Installation
 
 1. Copy this repository URL.
+2. In Lumiverse, navigate to **Settings → Extensions**[cite: 4, 5].
+3. Paste the URL into **Install from Source** and press **Install**[cite: 4].
+4. Open any chat, and Buggy will be waiting on your message composer[cite: 4]!
 
-2. Open Lumiverse and navigate to **Settings → Extensions**.
+> **Pro-Tip:** Click the **chain link icon** inside Buggy's header to bind him to a fast, lightweight model (like *Gemini Flash* or *Claude Haiku*) so you never burn expensive flagship tokens on dictionary lookups.
 
-3. Paste the URL into **Install from Source** and click **Install**.
+---
 
-4. Open any chat to find your tiny scholar waiting patiently by your message composer!
+<div align="center">
+
+<sub>Crafted with 🍃 and ancient scrolls for the Lumiverse community.</sub>
+
+</div>
