@@ -1,7 +1,6 @@
 <div align="center">
 
-<!-- Upload your logo to the repo root as logo.png or use your Catbox link -->
-<img src="logo.png" alt="BookWorm Logo" width="340" />
+<img src="[logo.png](https://files.catbox.moe/3ztbpa.png)" alt="BookWorm Logo" width="340" />
 
 # 🐛 BookWorm
 ### *Your miniature literary companion, vocabulary savant, and in-chat research desk*
