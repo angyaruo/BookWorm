@@ -1,74 +1,116 @@
-// dist/frontend.js — BookWorm Frontend Companion
+// dist/frontend.js — BookWorm Composer Corner Widget
 
-const MASCOT_SVG = `
-<svg width="34" height="24" viewBox="0 0 120 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="102" cy="56" r="14" fill="#38a169" stroke="#1a202c" stroke-width="4"/>
-  <circle cx="86" cy="52" r="16" fill="#48bb78" stroke="#1a202c" stroke-width="4"/>
-  <circle cx="68" cy="50" r="17" fill="#38a169" stroke="#1a202c" stroke-width="4"/>
-  <circle cx="50" cy="54" r="18" fill="#48bb78" stroke="#1a202c" stroke-width="4"/>
-  <ellipse cx="44" cy="73" rx="4" ry="3" fill="#276749" stroke="#1a202c" stroke-width="2"/>
-  <ellipse cx="56" cy="73" rx="4" ry="3" fill="#276749" stroke="#1a202c" stroke-width="2"/>
-  <ellipse cx="78" cy="71" rx="4" ry="3" fill="#276749" stroke="#1a202c" stroke-width="2"/>
-  <ellipse cx="94" cy="70" rx="4" ry="3" fill="#276749" stroke="#1a202c" stroke-width="2"/>
-  <path d="M28 32 C24 18 16 14 14 18" stroke="#1a202c" stroke-width="4" stroke-linecap="round"/>
-  <circle cx="13" cy="18" r="5" fill="#48bb78" stroke="#1a202c" stroke-width="2"/>
-  <path d="M38 30 C42 16 50 14 52 18" stroke="#1a202c" stroke-width="4" stroke-linecap="round"/>
-  <circle cx="53" cy="18" r="5" fill="#48bb78" stroke="#1a202c" stroke-width="2"/>
-  <circle cx="34" cy="46" r="19" fill="#fbd38d" stroke="#1a202c" stroke-width="4"/>
-  <circle cx="28" cy="44" r="2.5" fill="#1a202c"/>
-  <circle cx="42" cy="44" r="2.5" fill="#1a202c"/>
-  <circle cx="34" cy="48" r="3.5" fill="#e53e3e"/>
-  <polygon points="34,16 6,28 34,36 62,28" fill="#1a202c" stroke="#1a202c" stroke-width="2"/>
-  <rect x="23" y="31" width="22" height="7" rx="2" fill="#2d3748"/>
-  <path d="M18 28 L14 38" stroke="#ecc94b" stroke-width="2"/>
-  <circle cx="13" cy="41" r="2.5" fill="#d69e2e"/>
+const SLEEPING_MASCOT_SVG = `
+<svg width="44" height="26" viewBox="0 0 140 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Body segments resting flat -->
+  <circle cx="120" cy="56" r="13" fill="#84cc16" stroke="#0f172a" stroke-width="4"/>
+  <circle cx="102" cy="54" r="15" fill="#22c55e" stroke="#0f172a" stroke-width="4"/>
+  <circle cx="82" cy="52" r="16" fill="#84cc16" stroke="#0f172a" stroke-width="4"/>
+  <circle cx="62" cy="54" r="17" fill="#22c55e" stroke="#0f172a" stroke-width="4"/>
+  <!-- Feet -->
+  <ellipse cx="62" cy="72" rx="4" ry="3" fill="#15803d" stroke="#0f172a" stroke-width="2"/>
+  <ellipse cx="82" cy="70" rx="4" ry="3" fill="#15803d" stroke="#0f172a" stroke-width="2"/>
+  <ellipse cx="102" cy="69" rx="4" ry="3" fill="#15803d" stroke="#0f172a" stroke-width="2"/>
+  <ellipse cx="118" cy="68" rx="4" ry="3" fill="#15803d" stroke="#0f172a" stroke-width="2"/>
+  <!-- Yellow Head -->
+  <circle cx="38" cy="50" r="19" fill="#facc15" stroke="#0f172a" stroke-width="4"/>
+  <!-- Relaxed Drooping Antennae -->
+  <path d="M30 35 C24 24 16 22 14 26" stroke="#0f172a" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="13" cy="27" r="4.5" fill="#22c55e" stroke="#0f172a" stroke-width="2"/>
+  <path d="M42 34 C46 23 54 23 56 27" stroke="#0f172a" stroke-width="4" stroke-linecap="round"/>
+  <circle cx="57" cy="27" r="4.5" fill="#22c55e" stroke="#0f172a" stroke-width="2"/>
+  <!-- Sleeping Curved Eyes -->
+  <path d="M26 47 Q30 51 34 47" stroke="#0f172a" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M42 47 Q46 51 50 47" stroke="#0f172a" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <!-- Nose -->
+  <circle cx="38" cy="52" r="3.5" fill="#ef4444"/>
+  <!-- Zzz Bubble -->
+  <path d="M12 28 C12 22 17 18 23 18 C29 18 34 22 34 28 C34 31 31 33 28 35 L27 40 L24 36 C17 36 12 33 12 28 Z" fill="#ffffff" stroke="#0f172a" stroke-width="2"/>
+  <text x="23" y="30" font-family="monospace" font-size="11" font-weight="900" fill="#0f172a" text-anchor="middle">z</text>
 </svg>
 `;
 
 export function setup(ctx) {
   let activeTab = 'tot';
-  let currentModal = null;
   let isGenerating = false;
   let connectionsList = [];
   let selectedConnId = '';
+  let isOpen = false;
 
+  // ─── STYLES ──────────────────────────────────────────────────────────────────
   const removeStyle = ctx.dom.addStyle(`
-    #bw-toolbar-btn {
-      display: inline-flex; align-items: center; justify-content: center;
-      width: 28px; height: 28px; border-radius: 6px;
-      border: 1px solid transparent; background: transparent;
-      color: var(--lumiverse-text-dim, #888899); cursor: pointer;
-      transition: all 0.15s ease; padding: 2px;
+    [data-component="InputArea"] {
+      position: relative !important;
+      overflow: visible !important;
     }
-    #bw-toolbar-btn:hover {
-      background: color-mix(in srgb, var(--lumiverse-primary, #8c82ff) 15%, transparent);
-      color: var(--lumiverse-primary, #8c82ff);
+    #bw-corner-widget {
+      position: absolute;
+      top: 6px;
+      right: 12px;
+      z-index: 35;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 6px;
+      border-radius: 8px;
+      background: transparent;
+      border: 1px solid transparent;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+    }
+    #bw-corner-widget:hover {
+      background: color-mix(in srgb, var(--lumiverse-primary, #8c82ff) 10%, transparent);
       border-color: color-mix(in srgb, var(--lumiverse-primary, #8c82ff) 30%, transparent);
+      transform: translateY(-1px);
     }
-    .bw-modal-wrap {
-      display: flex; flex-direction: column; gap: 10px; font-family: inherit;
+    #bw-corner-widget.bw-active {
+      background: color-mix(in srgb, var(--lumiverse-primary, #8c82ff) 18%, transparent);
+      border-color: var(--lumiverse-primary, #8c82ff);
+    }
+    .bw-popup-card {
+      position: absolute;
+      bottom: calc(100% + 10px);
+      right: 8px;
+      width: 420px;
+      max-width: calc(100vw - 24px);
+      background: var(--lumiverse-bg-elevated, #141721);
+      border: 1px solid var(--lumiverse-border, #334155);
+      border-radius: 12px;
+      box-shadow: 0 12px 36px rgba(0,0,0,0.65), 0 0 12px color-mix(in srgb, var(--lumiverse-primary, #8c82ff) 20%, transparent);
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 12px;
+      box-sizing: border-box;
+      font-family: inherit;
       color: var(--lumiverse-text, #e2e8f0);
+      animation: bwFadeIn 0.14s ease-out;
+    }
+    @keyframes bwFadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     .bw-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding-bottom: 8px; border-bottom: 1px solid var(--lumiverse-border, #334155);
+      padding-bottom: 6px; border-bottom: 1px solid var(--lumiverse-border, #334155);
     }
-    .bw-header-left { display: flex; align-items: center; gap: 10px; }
-    .bw-header-title { font-size: 14px; font-weight: 700; }
-    .bw-header-subtitle { font-size: 11px; color: var(--lumiverse-text-dim, #94a3b8); }
+    .bw-header-title { font-size: 13.5px; font-weight: 700; color: var(--lumiverse-text, #f8fafc); }
+    .bw-header-subtitle { font-size: 10.5px; color: var(--lumiverse-text-dim, #94a3b8); }
     .bw-conn-select {
-      background: var(--lumiverse-fill-subtle, rgba(0,0,0,0.2));
+      background: var(--lumiverse-fill-subtle, rgba(0,0,0,0.25));
       border: 1px solid var(--lumiverse-border, #334155); border-radius: 6px;
       padding: 3px 6px; font-size: 11px; color: var(--lumiverse-text, #e2e8f0); outline: none;
     }
     .bw-tabs {
       display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;
-      background: var(--lumiverse-fill-subtle, rgba(0,0,0,0.2));
+      background: var(--lumiverse-fill-subtle, rgba(0,0,0,0.25));
       padding: 3px; border-radius: 8px; border: 1px solid var(--lumiverse-border, #334155);
     }
     .bw-tab-btn {
       background: transparent; border: none; border-radius: 6px;
-      padding: 6px 3px; font-size: 11px; font-weight: 600; cursor: pointer;
+      padding: 5px 3px; font-size: 11px; font-weight: 600; cursor: pointer;
       color: var(--lumiverse-text-dim, #94a3b8); transition: all 0.12s ease;
       text-align: center;
     }
@@ -79,8 +121,8 @@ export function setup(ctx) {
       box-shadow: 0 1px 3px rgba(0,0,0,0.3);
     }
     .bw-textarea {
-      width: 100%; box-sizing: border-box; min-height: 70px; resize: vertical;
-      background: var(--lumiverse-fill-subtle, rgba(0,0,0,0.2));
+      width: 100%; box-sizing: border-box; min-height: 65px; resize: vertical;
+      background: var(--lumiverse-fill-subtle, rgba(0,0,0,0.25));
       border: 1px solid var(--lumiverse-border, #334155); border-radius: 6px;
       padding: 8px 10px; font-size: 12px; color: var(--lumiverse-text, #f8fafc);
       outline: none; font-family: inherit;
@@ -88,7 +130,7 @@ export function setup(ctx) {
     .bw-textarea:focus { border-color: var(--lumiverse-primary, #8c82ff); }
     .bw-btn-ask {
       display: inline-flex; align-items: center; justify-content: center;
-      padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600;
+      padding: 5px 12px; border-radius: 6px; font-size: 11.5px; font-weight: 600;
       border: 1px solid var(--lumiverse-primary, #8c82ff);
       background: color-mix(in srgb, var(--lumiverse-primary, #8c82ff) 20%, transparent);
       color: var(--lumiverse-primary, #8c82ff); cursor: pointer; transition: background 0.12s;
@@ -100,12 +142,12 @@ export function setup(ctx) {
     .bw-results-box {
       border: 1px solid var(--lumiverse-border, #334155);
       background: var(--lumiverse-fill-subtle, rgba(0,0,0,0.15));
-      border-radius: 6px; padding: 10px; min-height: 90px; max-height: 190px;
+      border-radius: 6px; padding: 8px 10px; min-height: 80px; max-height: 180px;
       overflow-y: auto; font-size: 12px; line-height: 1.5; white-space: pre-wrap;
     }
     .bw-card-action {
       display: inline-flex; align-items: center; gap: 4px;
-      padding: 4px 9px; border-radius: 4px;
+      padding: 3px 8px; border-radius: 4px;
       border: 1px solid var(--lumiverse-border, #334155);
       background: transparent; font-size: 11px; cursor: pointer;
       color: var(--lumiverse-text-muted, #94a3b8);
@@ -131,7 +173,6 @@ export function setup(ctx) {
     ta.dispatchEvent(new Event('input', { bubbles: true }));
     ta.dispatchEvent(new Event('change', { bubbles: true }));
     ta.focus();
-    currentModal?.dismiss();
   }
 
   function getRecentSceneContext() {
@@ -144,13 +185,16 @@ export function setup(ctx) {
     return snippets.join('\n---\n');
   }
 
-  function openBookwormModal() {
-    currentModal = ctx.ui.showModal({ title: 'BookWorm Desk', width: 440 });
-    const root = currentModal.root;
-    root.innerHTML = '';
+  function renderPopup(container) {
+    let popup = document.getElementById('bw-popup-window');
+    if (popup) {
+      popup.remove();
+      return;
+    }
 
-    const wrap = document.createElement('div');
-    wrap.className = 'bw-modal-wrap';
+    popup = document.createElement('div');
+    popup.id = 'bw-popup-window';
+    popup.className = 'bw-popup-card';
 
     let connOptions = '<option value="">Default Connection</option>';
     connectionsList.forEach(c => {
@@ -158,16 +202,16 @@ export function setup(ctx) {
       connOptions += `<option value="${c.id}" ${sel}>${c.name}</option>`;
     });
 
-    wrap.innerHTML = `
+    popup.innerHTML = `
       <div class="bw-header">
-        <div class="bw-header-left">
-          ${MASCOT_SVG}
-          <div>
-            <div class="bw-header-title">BookWorm Research Desk</div>
-            <div class="bw-header-subtitle">Literary companion & domain savant</div>
-          </div>
+        <div>
+          <div class="bw-header-title">BookWorm Desk</div>
+          <div class="bw-header-subtitle">Literary assistant & domain guide</div>
         </div>
-        <select class="bw-conn-select" id="bw-conn-picker">${connOptions}</select>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <select class="bw-conn-select" id="bw-conn-picker">${connOptions}</select>
+          <button id="bw-popup-close" style="background:transparent; border:none; color:var(--lumiverse-text-dim,#94a3b8); cursor:pointer; font-size:14px;">✕</button>
+        </div>
       </div>
 
       <div class="bw-tabs">
@@ -183,22 +227,24 @@ export function setup(ctx) {
         <button class="bw-btn-ask" id="bw-ask-btn">Consult BookWorm</button>
       </div>
 
-      <div class="bw-results-box" id="bw-output-box">Ask the worm above to begin!</div>
+      <div class="bw-results-box" id="bw-output-box">Ask the sleeping scholar anything above to wake him!</div>
       <div id="bw-result-actions" style="display:none; justify-content:flex-end; gap:6px;">
         <button class="bw-card-action" id="bw-inject-btn">Insert into Composer</button>
       </div>
     `;
 
-    root.appendChild(wrap);
+    container.appendChild(popup);
 
-    const inputTa = wrap.querySelector('#bw-query-input');
-    const outputBox = wrap.querySelector('#bw-output-box');
-    const askBtn = wrap.querySelector('#bw-ask-btn');
-    const connPicker = wrap.querySelector('#bw-conn-picker');
-    const actionsRow = wrap.querySelector('#bw-result-actions');
-    const injectBtn = wrap.querySelector('#bw-inject-btn');
+    const inputTa = popup.querySelector('#bw-query-input');
+    const outputBox = popup.querySelector('#bw-output-box');
+    const askBtn = popup.querySelector('#bw-ask-btn');
+    const connPicker = popup.querySelector('#bw-conn-picker');
+    const actionsRow = popup.querySelector('#bw-result-actions');
+    const injectBtn = popup.querySelector('#bw-inject-btn');
+    const closeBtn = popup.querySelector('#bw-popup-close');
 
     connPicker.onchange = (e) => { selectedConnId = e.target.value; };
+    closeBtn.onclick = () => toggleWidget(false);
 
     function updatePlaceholder() {
       const placeholders = {
@@ -211,9 +257,9 @@ export function setup(ctx) {
     }
     updatePlaceholder();
 
-    wrap.querySelectorAll('.bw-tab-btn').forEach(btn => {
+    popup.querySelectorAll('.bw-tab-btn').forEach(btn => {
       btn.onclick = () => {
-        wrap.querySelectorAll('.bw-tab-btn').forEach(b => b.classList.remove('bw-active'));
+        popup.querySelectorAll('.bw-tab-btn').forEach(b => b.classList.remove('bw-active'));
         btn.classList.add('bw-active');
         activeTab = btn.dataset.tab;
         updatePlaceholder();
@@ -243,13 +289,39 @@ export function setup(ctx) {
       const text = outputBox.textContent.trim();
       if (text) populateComposer(text);
     };
-
-    currentModal.onDismiss(() => { currentModal = null; });
   }
 
+  function toggleWidget(forceState) {
+    const inputArea = document.querySelector('[data-component="InputArea"]');
+    if (!inputArea) return;
+
+    isOpen = typeof forceState === 'boolean' ? forceState : !isOpen;
+    const widgetBtn = document.getElementById('bw-corner-widget');
+    if (widgetBtn) {
+      widgetBtn.classList.toggle('bw-active', isOpen);
+    }
+
+    if (isOpen) {
+      ctx.sendToBackend({ type: 'bookworm:get_connections' });
+      renderPopup(inputArea);
+    } else {
+      document.getElementById('bw-popup-window')?.remove();
+    }
+  }
+
+  // ─── RECEIVE BACKEND MESSAGES ──────────────────────────────────────────────
   const unsubMsg = ctx.onBackendMessage((payload) => {
     if (payload.type === 'bookworm:connections') {
       connectionsList = payload.connections || [];
+      const connPicker = document.getElementById('bw-conn-picker');
+      if (connPicker) {
+        let connOptions = '<option value="">Default Connection</option>';
+        connectionsList.forEach(c => {
+          const sel = c.id === selectedConnId ? 'selected' : '';
+          connOptions += `<option value="${c.id}" ${sel}>${c.name}</option>`;
+        });
+        connPicker.innerHTML = connOptions;
+      }
     }
 
     if (payload.type === 'bookworm:result') {
@@ -275,41 +347,40 @@ export function setup(ctx) {
     }
   });
 
-  function mountToolbar() {
-    if (document.getElementById('bw-toolbar-btn')) return;
+  // ─── MOUNT CORNER WIDGET ────────────────────────────────────────────────────
+  function mountCornerWidget() {
+    // Remove old middle-row toolbar button if present
+    document.getElementById('bw-toolbar-btn')?.remove();
+
+    if (document.getElementById('bw-corner-widget')) return;
+
     const inputArea = document.querySelector('[data-component="InputArea"]');
     if (!inputArea) return;
 
-    const anchor = inputArea.querySelector(
-      'button:has(svg.lucide-wand-2), button:has(svg.lucide-file-text), button[title*="Seasoning"]'
-    );
-    const targetRow = anchor ? anchor.parentElement : (inputArea.querySelector('div') || inputArea);
-
     const btn = document.createElement('button');
-    btn.id = 'bw-toolbar-btn';
+    btn.id = 'bw-corner-widget';
     btn.type = 'button';
-    btn.title = 'BookWorm Assistant';
-    btn.innerHTML = MASCOT_SVG;
+    btn.title = 'BookWorm (Click to wake/consult)';
+    btn.innerHTML = SLEEPING_MASCOT_SVG;
 
     btn.onclick = (e) => {
       e.preventDefault();
-      ctx.sendToBackend({ type: 'bookworm:get_connections' });
-      openBookwormModal();
+      toggleWidget();
     };
 
-    targetRow.appendChild(btn);
+    inputArea.appendChild(btn);
   }
 
-  const obs = new MutationObserver(() => mountToolbar());
+  const obs = new MutationObserver(() => mountCornerWidget());
   obs.observe(document.body, { childList: true, subtree: true });
-  mountToolbar();
+  mountCornerWidget();
   ctx.sendToBackend({ type: 'bookworm:get_connections' });
 
   return () => {
     obs.disconnect();
     unsubMsg();
     removeStyle();
-    document.getElementById('bw-toolbar-btn')?.remove();
-    currentModal?.dismiss();
+    document.getElementById('bw-corner-widget')?.remove();
+    document.getElementById('bw-popup-window')?.remove();
   };
 }
