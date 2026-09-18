@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "name": "BookWorm",
+  "identifier": "lumiverse_bookworm",
+  "description": "Your miniature literary companion, vocabulary savant, and in-chat research desk.",
+  "author": "angyaruo",
+  "permissions": [
+    "generation",
+    "chats",
+    "ui_panels"
+  ],
+  "entry_backend": "dist/backend.js",
+  "entry_frontend": "dist/frontend.js",
+  "interceptorTimeoutMs": 10000
+}
