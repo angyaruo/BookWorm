@@ -1,8 +1,8 @@
 <div align="center">
 
-<img src="[logo.png](https://files.catbox.moe/3ztbpa.png)" alt="BookWorm Logo" width="340" />
+<img src="https://files.catbox.moe/3ztbpa.png" alt="BookWorm Logo" width="340" />
 
-# 🐛 BookWorm
+# BookWorm
 ### *Your miniature literary companion, vocabulary savant, and in-chat research desk*
 
 [![Lumiverse](https://img.shields.io/badge/Lumiverse-Spindle_Extension-22c55e?style=for-the-badge&logo=gnome&logoColor=white)](#)
