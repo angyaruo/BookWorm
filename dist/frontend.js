@@ -10,6 +10,37 @@ const SPRITES = {
   singing:  "https://files.catbox.moe/cvud99.png",
 };
 
+// One line per opening, rotating through the full set before repeating.
+const BUGGY_MESSAGES = [
+  "i am buge. i dig in book for you. is this okay? let me know.",
+  "hello writer person. buggy has arrive, with several thought and one leaf crumb.",
+  "the words is hiding again? typical words. we find them.",
+  "good day for make sentence. bad day for sentence escape.",
+  "buggy was thinking very loud. nobody complain because buggy is small.",
+  "welcome back. book is open and brain is mostly also open.",
+  "you bring question, i bring suspicious amount of vocabulary.",
+  "buggy report for duty. duty is reading. excellent duty.",
+  "hmm. perhaps today we put a very good word in a very good place.",
+  "i have polish the tiny spectacles. now we see all the metaphor.",
+  "bug fact: beetles is about one quarter of all known animal species. very overachieve.",
+  "bug fact: butterfly taste with the feet. imagine step on soup and know it.",
+  "bug fact: ants do not have lungs. air go in little body holes, very efficient.",
+  "bug fact: honeybee can tell direction by doing dance. buggy also dance but give no direction.",
+  "bug fact: dragonfly was here before dinosaur. extremely old zooming fellow.",
+  "bug fact: ladybug may eat thousands of aphid. tiny red vacuum with fashion.",
+  "bug fact: cricket ears is on the front legs. please speak toward knee.",
+  "bug fact: firefly light make almost no heat. is called cold light, but look warm to buggy.",
+  "bug fact: praying mantis can turn head very far. excellent for seeing unfinished paragraph.",
+  "bug fact: some moth drink tears from sleeping animal. rude beverage, beautiful moth.",
+];
+
+function getNextBuggyMessage() {
+  const stored = Number.parseInt(localStorage.getItem('bw_buggy_message_index') || '-1', 10);
+  const nextIndex = (Number.isFinite(stored) ? stored + 1 : 0) % BUGGY_MESSAGES.length;
+  localStorage.setItem('bw_buggy_message_index', String(nextIndex));
+  return BUGGY_MESSAGES[nextIndex];
+}
+
 // Preload sprites into memory
 if (typeof Image !== 'undefined') {
   Object.values(SPRITES).forEach((src) => {
@@ -35,6 +66,22 @@ export function setup(ctx) {
   let isOpen = false;
   let currentDeskMood = 'reading';
   let rawCurrentAnswer = '';
+  let currentBuggyMessage = BUGGY_MESSAGES[0];
+  let activeRequestId = null;
+  let activeRequestQuery = '';
+  let activeRequestMode = '';
+  let streamingAnswer = '';
+
+  function cancelActiveRequest() {
+    if (activeRequestId) {
+      ctx.sendToBackend({ type: 'bookworm:cancel', requestId: activeRequestId });
+    }
+    activeRequestId = null;
+    activeRequestQuery = '';
+    activeRequestMode = '';
+    streamingAnswer = '';
+    isGenerating = false;
+  }
 
   // ─── STYLES ──────────────────────────────────────────────────────────────────
   const removeStyle = ctx.dom.addStyle(`
@@ -448,7 +495,7 @@ export function setup(ctx) {
         <div class="bw-bottom-mascot-wrap" id="bw-desk-mascot-btn" title="Click to give Buggy a leaf!">
           <img src="${getDeskSpriteUrl(currentDeskMood)}" id="bw-desk-mascot-img" class="bw-desk-mascot" alt="Buggy" />
         </div>
-        <div class="bw-results-box" id="bw-output-box">i am buge. i dig in book for you. is this okay? let me know.</div>
+        <div class="bw-results-box" id="bw-output-box">${renderMarkdown(currentBuggyMessage)}</div>
       </div>
 
       <div id="bw-result-actions" style="display:none; justify-content:flex-end; gap:6px;">
@@ -543,14 +590,9 @@ export function setup(ctx) {
       histMenu.style.display = 'none';
     }, { once: true });
 
-    // Mascot Easter Egg: Hover or click to munch leaf
-    mascotWrap.onmouseenter = () => { if (!isGenerating) setDeskMood('munching'); };
-    mascotWrap.onmouseleave = () => {
-      if (!isGenerating) setDeskMood(outputBox.textContent.startsWith('Ask me') ? 'reading' : 'singing');
-    };
+    // Mascot Easter Egg: a click feeds Buggy until the desk is closed.
     mascotWrap.onclick = () => {
-      setDeskMood('munching');
-      setTimeout(() => { if (!isGenerating) setDeskMood('reading'); }, 1500);
+      if (!isGenerating) setDeskMood('munching');
     };
 
     function updatePlaceholder() {
@@ -567,10 +609,19 @@ export function setup(ctx) {
 
     popup.querySelectorAll('.bw-tab-btn').forEach((btn) => {
       btn.onclick = () => {
+        cancelActiveRequest();
         popup.querySelectorAll('.bw-tab-btn').forEach((b) => b.classList.remove('bw-active'));
         btn.classList.add('bw-active');
         activeTab = btn.dataset.tab;
+        inputTa.value = '';
+        rawCurrentAnswer = '';
+        outputBox.innerHTML = renderMarkdown(currentBuggyMessage);
+        actionsRow.style.display = 'none';
+        askBtn.disabled = false;
+        askBtn.textContent = 'Consult Buggy';
+        setDeskMood('reading');
         updatePlaceholder();
+        inputTa.focus();
       };
     });
 
@@ -579,6 +630,10 @@ export function setup(ctx) {
       if (!query || isGenerating) return;
 
       isGenerating = true;
+      activeRequestId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+      activeRequestQuery = query;
+      activeRequestMode = activeTab;
+      streamingAnswer = '';
       setDeskMood('thinking');
       askBtn.disabled = true;
       askBtn.textContent = 'Buggy is reading…';
@@ -591,6 +646,7 @@ export function setup(ctx) {
         query: query,
         connectionId: selectedConnId || null,
         sceneContext: activeTab === 'next_step' ? getRecentSceneContext() : '',
+        requestId: activeRequestId,
       });
     };
 
@@ -607,10 +663,16 @@ export function setup(ctx) {
     updatePerchedSprite();
 
     if (isOpen) {
+      cancelActiveRequest();
       currentDeskMood = 'reading';
+      currentBuggyMessage = getNextBuggyMessage();
+      rawCurrentAnswer = '';
       ctx.sendToBackend({ type: 'bookworm:get_connections' });
       renderPopup(inputArea);
     } else {
+      cancelActiveRequest();
+      currentDeskMood = 'reading';
+      rawCurrentAnswer = '';
       document.getElementById('bw-popup-window')?.remove();
     }
   }
@@ -626,12 +688,28 @@ export function setup(ctx) {
       }
     }
 
+    if (payload.type === 'bookworm:result_chunk') {
+      if (!activeRequestId || payload.requestId !== activeRequestId) return;
+      streamingAnswer += payload.text || '';
+      const outputBox = document.getElementById('bw-output-box');
+      if (outputBox) {
+        outputBox.innerHTML = renderMarkdown(streamingAnswer);
+        outputBox.scrollTop = outputBox.scrollHeight;
+      }
+    }
+
     if (payload.type === 'bookworm:result') {
+      if (!activeRequestId || payload.requestId !== activeRequestId) return;
+      const completedQuery = activeRequestQuery;
+      const completedMode = activeRequestMode;
       isGenerating = false;
+      activeRequestId = null;
+      activeRequestQuery = '';
+      activeRequestMode = '';
+      streamingAnswer = '';
       const askBtn = document.getElementById('bw-ask-btn');
       const outputBox = document.getElementById('bw-output-box');
       const actionsRow = document.getElementById('bw-result-actions');
-      const inputTa = document.getElementById('bw-query-input');
 
       if (askBtn) {
         askBtn.disabled = false;
@@ -653,10 +731,10 @@ export function setup(ctx) {
       }
 
       // Record in recent history
-      if (inputTa && inputTa.value.trim()) {
+      if (completedQuery) {
         pushHistory({
-          mode: payload.mode || activeTab,
-          query: inputTa.value.trim(),
+          mode: payload.mode || completedMode,
+          query: completedQuery,
           answer: payload.answer
         });
       }

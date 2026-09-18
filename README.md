@@ -6,7 +6,7 @@
 ### *Your miniature literary companion, vocabulary savant, and in-chat research desk*
 
 [![Lumiverse](https://img.shields.io/badge/Lumiverse-Spindle_Extension-22c55e?style=for-the-badge&logo=gnome&logoColor=white)](#)
-[![Version](https://img.shields.io/badge/Version-1.0.0-8c6d37?style=for-the-badge)](#)
+[![Version](https://img.shields.io/badge/Version-1.1.0-8c6d37?style=for-the-badge)](#)
 [![Theme](https://img.shields.io/badge/Aesthetic-Grimoire_Tome-ffd166?style=for-the-badge&labelColor=181412)](#)
 
 <p align="center">
@@ -38,7 +38,9 @@ Buggy is fully animated to mirror your writing flow:
 * **Book Reading:** Flips through archives while you browse tabs and type your queries.
 * **Thinking Bubble:** Deep in thought while your chosen model synthesizes notes.
 * **Singing Joy:** Celebrates with musical notes once your advice is delivered!
-* **Leaf Munching (Easter Egg):** Hover over or click Buggy inside the desk to feed him fresh foliage.
+* **Leaf Munching (Easter Egg):** Click Buggy inside the desk to feed him fresh foliage. He keeps munching until you close the desk.
+
+Each time the desk opens, Buggy also rotates through 20 peculiar greetings, thoughts, and insect facts.
 
 ---
 
@@ -50,6 +52,8 @@ Buggy is fully animated to mirror your writing flow:
 4. Open any chat, and Buggy will be waiting on your message composer!
 
 > **Pro-Tip:** Click the **chain link icon** inside Buggy's header to bind him to a fast, lightweight model (like *Gemini Flash* or *Claude Haiku*) so you never burn expensive flagship tokens on dictionary lookups.
+
+BookWorm streams direct quiet-generation responses as they arrive, disables extended reasoning for these small lookups, and stops requests that exceed 30 seconds. Provider queueing and the chosen model can still affect initial response time.
 
 ---
 
