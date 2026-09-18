@@ -1,6 +1,6 @@
-// dist/frontend.js — BookWorm Grimoire Edition
 
-// ─── 🐛 SPRITE DIRECTORY (Paste your Catbox links here!) ─────────────────────
+
+// ─── 🐛 fumckin buge ────────────────────
 const SPRITES = {
   sleeping: "https://files.catbox.moe/fsxx8g.png",
   awake:    "https://files.catbox.moe/dyulgy.png",
@@ -10,7 +10,7 @@ const SPRITES = {
   singing:  "https://files.catbox.moe/cvud99.png",
 };
 
-// Preload all sprites into memory for instant transitions
+// Preload sprites into memory
 if (typeof Image !== 'undefined') {
   Object.values(SPRITES).forEach((src) => {
     if (src && !src.includes('YOUR_')) {
@@ -20,15 +20,23 @@ if (typeof Image !== 'undefined') {
   });
 }
 
+// ─── ICONS ───────────────────────────────────────────────────────────────────
+const IC = {
+  link: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`,
+  history: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>`,
+  close: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
+};
+
 export function setup(ctx) {
-  let activeTab = 'tot'; // 'tot' | 'thesaurus' | 'research' | 'next_step' | 'translate'
+  let activeTab = 'tot';
   let isGenerating = false;
   let connectionsList = [];
-  let selectedConnId = '';
+  let selectedConnId = localStorage.getItem('bw_selected_connection_id') || '';
   let isOpen = false;
-  let currentDeskMood = 'reading'; // 'reading' | 'thinking' | 'singing' | 'munching'
+  let currentDeskMood = 'reading';
+  let rawCurrentAnswer = '';
 
-  // ─── GRIMOIRE BOOK STYLES ──────────────────────────────────────────────────
+  // ─── STYLES ──────────────────────────────────────────────────────────────────
   const removeStyle = ctx.dom.addStyle(`
     [data-component="InputArea"],
     [class*="_inputArea_"],
@@ -38,6 +46,7 @@ export function setup(ctx) {
       overflow: visible !important;
     }
 
+    /* ─── Perched Rim Widget (No Shadows) ─── */
     #bw-corner-widget {
       position: absolute;
       top: -26px;
@@ -54,29 +63,22 @@ export function setup(ctx) {
       line-height: 0;
       transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
-
-    #bw-corner-widget:hover {
-      transform: translateY(-3px) scale(1.08);
-    }
-
-    #bw-corner-widget:active {
-      transform: translateY(1px) scale(0.96);
-    }
+    #bw-corner-widget:hover { transform: translateY(-3px) scale(1.08); }
+    #bw-corner-widget:active { transform: translateY(1px) scale(0.96); }
 
     .bw-sprite-img {
       height: 38px;
       width: auto;
       min-width: 32px;
       object-fit: contain;
-      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.65));
       pointer-events: none;
       -webkit-user-drag: none;
     }
 
-    /* ─── Vintage Leather Tome Pop-up Card ─── */
+    /* ─── Grimoire Window (Lifted Higher to Clear Sprite) ─── */
     .bw-book-card {
       position: absolute;
-      bottom: calc(100% + 14px);
+      bottom: calc(100% + 48px);
       right: 8px;
       width: 440px;
       max-width: calc(100vw - 20px);
@@ -102,7 +104,6 @@ export function setup(ctx) {
       animation: bwBookOpen 0.18s ease-out;
     }
 
-    /* Hanging Silk Ribbon Bookmark */
     .bw-book-card::before {
       content: "";
       position: absolute;
@@ -127,34 +128,56 @@ export function setup(ctx) {
       display: flex; align-items: center; justify-content: space-between;
       padding-bottom: 7px; border-bottom: 1px dashed rgba(140, 109, 55, 0.4);
     }
-    .bw-header-left { display: flex; align-items: center; gap: 10px; }
-    .bw-desk-mascot-wrap {
-      cursor: pointer;
-      position: relative;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .bw-desk-mascot {
-      height: 42px; width: auto;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
-      transition: transform 0.14s ease;
-    }
-    .bw-desk-mascot-wrap:hover .bw-desk-mascot {
-      transform: scale(1.1) rotate(-3deg);
-    }
     .bw-header-title {
       font-size: 14px; font-weight: 700; color: #f4ecd8;
       letter-spacing: 0.05em; text-transform: uppercase;
     }
     .bw-header-subtitle { font-size: 11px; color: #a89a83; font-style: italic; }
 
-    .bw-conn-select {
-      background: rgba(14, 12, 10, 0.7);
-      border: 1px solid #8c6d37; border-radius: 4px;
-      padding: 3px 6px; font-size: 11px; color: #f4ecd8;
-      outline: none; font-family: sans-serif;
+    /* ─── Lumiverse Native Style Connection Picker & Action Icons ─── */
+    .bw-header-actions { display: flex; align-items: center; gap: 6px; position: relative; }
+    
+    .bw-conn-pill-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(22, 19, 16, 0.8);
+      border: 1px solid #8c6d37; border-radius: 14px;
+      padding: 3px 8px; font-size: 11px; color: #f4ecd8;
+      cursor: pointer; font-family: sans-serif; transition: all 0.12s ease;
+      max-width: 135px;
     }
+    .bw-conn-pill-btn:hover {
+      background: rgba(140, 109, 55, 0.25);
+      border-color: #ffd166;
+    }
+    .bw-conn-name {
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+
+    .bw-icon-btn {
+      background: transparent; border: none; color: #a89a83;
+      cursor: pointer; padding: 4px; display: inline-flex;
+      align-items: center; justify-content: center; border-radius: 4px;
+      transition: color 0.12s;
+    }
+    .bw-icon-btn:hover { color: #ffd166; background: rgba(140, 109, 55, 0.15); }
+
+    /* Floating Dropdown Menus (Connection & History) */
+    .bw-dropdown-popover {
+      position: absolute; top: calc(100% + 6px); right: 0;
+      background: #14110f; border: 1px solid #8c6d37;
+      border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.85);
+      z-index: 100; min-width: 180px; max-height: 200px; overflow-y: auto;
+      padding: 4px; display: flex; flex-direction: column; gap: 2px;
+      font-family: sans-serif; font-size: 11px;
+    }
+    .bw-dropdown-item {
+      padding: 5px 8px; border-radius: 4px; cursor: pointer;
+      color: #ede2cd; transition: background 0.12s; text-align: left;
+      border: none; background: transparent; display: flex; flex-direction: column;
+    }
+    .bw-dropdown-item:hover { background: rgba(140, 109, 55, 0.25); color: #ffd166; }
+    .bw-dropdown-item.bw-selected { color: #ffd166; font-weight: 700; }
+    .bw-history-badge { font-size: 9px; color: #8c6d37; text-transform: uppercase; }
 
     /* Grimoire Bookmark Tabs */
     .bw-tabs {
@@ -170,24 +193,17 @@ export function setup(ctx) {
     }
     .bw-tab-btn:hover { color: #f4ecd8; background: rgba(140, 109, 55, 0.15); }
     .bw-tab-btn.bw-active {
-      background: #2a221a;
-      color: #ffd166;
-      border-color: #8c6d37;
+      background: #2a221a; color: #ffd166; border-color: #8c6d37;
       box-shadow: 0 1px 4px rgba(0,0,0,0.5);
     }
 
-    /* Parchment Text Input */
     .bw-textarea {
-      width: 100%; box-sizing: border-box; min-height: 64px; resize: vertical;
-      background: #110e0c;
-      border: 1px solid rgba(140, 109, 55, 0.45); border-radius: 4px;
-      padding: 8px 10px; font-size: 12px; color: #fdfbf7;
+      width: 100%; box-sizing: border-box; min-height: 60px; resize: vertical;
+      background: #110e0c; border: 1px solid rgba(140, 109, 55, 0.45);
+      border-radius: 4px; padding: 8px 10px; font-size: 12px; color: #fdfbf7;
       outline: none; font-family: Georgia, serif; line-height: 1.4;
     }
-    .bw-textarea:focus {
-      border-color: #d4af37;
-      box-shadow: 0 0 8px rgba(212, 175, 55, 0.2);
-    }
+    .bw-textarea:focus { border-color: #d4af37; box-shadow: 0 0 8px rgba(212, 175, 55, 0.2); }
 
     .bw-btn-ask {
       display: inline-flex; align-items: center; justify-content: center;
@@ -195,25 +211,89 @@ export function setup(ctx) {
       border: 1px solid #8c6d37;
       background: linear-gradient(to bottom, #382c20, #221b13);
       color: #ffd166; cursor: pointer; font-family: sans-serif;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.4);
-      transition: all 0.12s ease;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.4); transition: all 0.12s ease;
     }
     .bw-btn-ask:hover:not(:disabled) {
-      border-color: #d4af37;
-      background: linear-gradient(to bottom, #4a3a2a, #2b2218);
+      border-color: #d4af37; background: linear-gradient(to bottom, #4a3a2a, #2b2218);
       color: #ffffff;
     }
     .bw-btn-ask:disabled { opacity: 0.45; cursor: default; }
 
-    /* Parchment Manuscript Result Display */
-    .bw-results-box {
-      border: 1px solid #5c4724;
-      background: #100d0b;
-      border-radius: 4px; padding: 10px; min-height: 80px; max-height: 180px;
-      overflow-y: auto; font-size: 12.5px; line-height: 1.55; white-space: pre-wrap;
-      color: #e8dcc4; font-family: Georgia, serif;
-      box-shadow: inset 0 0 10px rgba(0,0,0,0.6);
+    /* ─── Bottom Dialogue Row & Off-White Speech Bubble ─── */
+    .bw-dialogue-row {
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+      margin-top: 4px;
+      position: relative;
     }
+
+    .bw-bottom-mascot-wrap {
+      flex-shrink: 0;
+      cursor: pointer;
+      position: relative;
+      user-select: none;
+      line-height: 0;
+    }
+    .bw-desk-mascot {
+      height: 64px;
+      width: auto;
+      object-fit: contain;
+      pointer-events: none;
+      -webkit-user-drag: none;
+      transition: transform 0.15s ease;
+    }
+    .bw-bottom-mascot-wrap:hover .bw-desk-mascot {
+      transform: scale(1.08) rotate(-3deg);
+    }
+
+    .bw-results-box {
+      flex: 1;
+      position: relative;
+      border: 1.5px solid #dcd1be;
+      background: #faf7ef;
+      color: #241e17;
+      border-radius: 9px;
+      padding: 10px 12px;
+      min-height: 85px;
+      max-height: 180px;
+      overflow-y: auto;
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 12px;
+      line-height: 1.55;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+    }
+
+    /* Speech Bubble Pointer Tail pointing left towards Buggy */
+    .bw-results-box::before {
+      content: "";
+      position: absolute;
+      bottom: 14px;
+      left: -8px;
+      width: 0; height: 0;
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-right: 8px solid #faf7ef;
+      z-index: 2;
+    }
+    .bw-results-box::after {
+      content: "";
+      position: absolute;
+      bottom: 13px;
+      left: -10px;
+      width: 0; height: 0;
+      border-top: 7px solid transparent;
+      border-bottom: 7px solid transparent;
+      border-right: 9px solid #dcd1be;
+      z-index: 1;
+    }
+
+    /* ─── Markdown Rendering Elements inside Dialogue ─── */
+    .bw-md-bullet { display: flex; gap: 6px; margin: 3px 0; align-items: flex-start; }
+    .bw-md-dot { color: #8c6d37; font-weight: bold; flex-shrink: 0; }
+    .bw-md-gap { height: 7px; }
+    .bw-results-box b { color: #16120e; font-weight: 700; }
+    .bw-results-box i { font-style: italic; color: #3b3127; }
 
     .bw-card-action {
       display: inline-flex; align-items: center; gap: 4px;
@@ -222,12 +302,43 @@ export function setup(ctx) {
       background: rgba(140, 109, 55, 0.12); font-size: 11px; cursor: pointer;
       color: #ffd166; font-family: sans-serif;
     }
-    .bw-card-action:hover {
-      background: #8c6d37;
-      color: #110e0c;
-    }
+    .bw-card-action:hover { background: #8c6d37; color: #110e0c; }
   `);
 
+  // ─── LIGHTWEIGHT MARKDOWN RESOLVER ──────────────────────────────────────────
+  function renderMarkdown(text) {
+    if (!text) return '';
+    let html = text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    html = html.replace(/\*\*\*(.*?)\*\*\*/g, '<b><i>$1</i></b>');
+    html = html.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+    html = html.replace(/\*(.*?)\*/g, '<i>$1</i>');
+    html = html.replace(/__(.*?)__/g, '<u>$1</u>');
+    html = html.replace(/^\s*[-*]\s+(.*$)/gim, '<div class="bw-md-bullet"><span class="bw-md-dot">•</span><span>$1</span></div>');
+    html = html.replace(/\n\n+/g, '<div class="bw-md-gap"></div>');
+    html = html.replace(/\n/g, '<br/>');
+    return html;
+  }
+
+  // ─── QUERY HISTORY STORAGE (LAST 5) ─────────────────────────────────────────
+  function getStoredHistory() {
+    try {
+      return JSON.parse(localStorage.getItem('bw_query_history') || '[]');
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function pushHistory(item) {
+    const list = getStoredHistory();
+    const updated = [item, ...list.filter(x => x.query !== item.query)].slice(0, 5);
+    localStorage.setItem('bw_query_history', JSON.stringify(updated));
+  }
+
+  // ─── SPRITE STATE ENGINE ───────────────────────────────────────────────────
   function getDeskSpriteUrl(mood) {
     switch (mood) {
       case 'thinking': return SPRITES.thinking || SPRITES.awake;
@@ -279,6 +390,7 @@ export function setup(ctx) {
     return snippets.join('\n---\n');
   }
 
+  // ─── RENDER POPUP ───────────────────────────────────────────────────────────
   function renderPopup(container) {
     let popup = document.getElementById('bw-popup-window');
     if (popup) {
@@ -290,26 +402,30 @@ export function setup(ctx) {
     popup.id = 'bw-popup-window';
     popup.className = 'bw-book-card';
 
-    let connOptions = '<option value="">Default Connection</option>';
-    connectionsList.forEach((c) => {
-      const sel = c.id === selectedConnId ? 'selected' : '';
-      connOptions += `<option value="${c.id}" ${sel}>${c.name}</option>`;
-    });
+    const activeConnObj = connectionsList.find(c => c.id === selectedConnId);
+    const connLabel = activeConnObj ? activeConnObj.name : 'Default Model';
 
     popup.innerHTML = `
       <div class="bw-header">
-        <div class="bw-header-left">
-          <div class="bw-desk-mascot-wrap" id="bw-desk-mascot-btn" title="Click to feed the scholar!">
-            <img src="${getDeskSpriteUrl(currentDeskMood)}" id="bw-desk-mascot-img" class="bw-desk-mascot" alt="BookWorm Mascot" />
-          </div>
-          <div>
-            <div class="bw-header-title">The BookWorm Grimoire</div>
-            <div class="bw-header-subtitle">Literary desk & linguistic companion</div>
-          </div>
+        <div>
+          <div class="bw-header-title">Ask Buggy</div>
+          <div class="bw-header-subtitle">Your literary companion & research savant</div>
         </div>
-        <div style="display:flex; align-items:center; gap:6px;">
-          <select class="bw-conn-select" id="bw-conn-picker">${connOptions}</select>
-          <button id="bw-popup-close" style="background:transparent; border:none; color:#a89a83; cursor:pointer; font-size:14px;">✕</button>
+        <div class="bw-header-actions">
+          <button class="bw-conn-pill-btn" id="bw-conn-toggle-btn" title="Select Model Connection">
+            ${IC.link}
+            <span class="bw-conn-name" id="bw-conn-label">${connLabel}</span>
+          </button>
+          <div id="bw-conn-menu" class="bw-dropdown-popover" style="display:none;"></div>
+
+          <button class="bw-icon-btn" id="bw-history-toggle-btn" title="Recent Questions">
+            ${IC.history}
+          </button>
+          <div id="bw-history-menu" class="bw-dropdown-popover" style="display:none;"></div>
+
+          <button class="bw-icon-btn" id="bw-popup-close" title="Close Desk">
+            ${IC.close}
+          </button>
         </div>
       </div>
 
@@ -324,10 +440,17 @@ export function setup(ctx) {
       <textarea class="bw-textarea" id="bw-query-input"></textarea>
 
       <div style="display:flex; justify-content:flex-end;">
-        <button class="bw-btn-ask" id="bw-ask-btn">Consult Tome</button>
+        <button class="bw-btn-ask" id="bw-ask-btn">Consult Buggy</button>
       </div>
 
-      <div class="bw-results-box" id="bw-output-box">The scholar awaits your inquiry upon the parchment.</div>
+      <!-- Dialogue Row: Mascot on Bottom Left, Speech Bubble on Right -->
+      <div class="bw-dialogue-row">
+        <div class="bw-bottom-mascot-wrap" id="bw-desk-mascot-btn" title="Click to give Buggy a leaf!">
+          <img src="${getDeskSpriteUrl(currentDeskMood)}" id="bw-desk-mascot-img" class="bw-desk-mascot" alt="Buggy" />
+        </div>
+        <div class="bw-results-box" id="bw-output-box">Ask me anything above! I'll dig into the archives for you.</div>
+      </div>
+
       <div id="bw-result-actions" style="display:none; justify-content:flex-end; gap:6px;">
         <button class="bw-card-action" id="bw-inject-btn">Inscribe into Composer</button>
       </div>
@@ -338,27 +461,96 @@ export function setup(ctx) {
     const inputTa = popup.querySelector('#bw-query-input');
     const outputBox = popup.querySelector('#bw-output-box');
     const askBtn = popup.querySelector('#bw-ask-btn');
-    const connPicker = popup.querySelector('#bw-conn-picker');
     const actionsRow = popup.querySelector('#bw-result-actions');
     const injectBtn = popup.querySelector('#bw-inject-btn');
     const closeBtn = popup.querySelector('#bw-popup-close');
     const mascotWrap = popup.querySelector('#bw-desk-mascot-btn');
+    const connBtn = popup.querySelector('#bw-conn-toggle-btn');
+    const connMenu = popup.querySelector('#bw-conn-menu');
+    const histBtn = popup.querySelector('#bw-history-toggle-btn');
+    const histMenu = popup.querySelector('#bw-history-menu');
 
-    connPicker.onchange = (e) => { selectedConnId = e.target.value; };
     closeBtn.onclick = () => toggleWidget(false);
 
-    // Mascot Easter Egg: Hover or click feeds him a leaf!
-    mascotWrap.onmouseenter = () => {
-      if (!isGenerating) setDeskMood('munching');
+    // ─── Connection Dropdown ───
+    connBtn.onclick = (e) => {
+      e.stopPropagation();
+      histMenu.style.display = 'none';
+      const isClosed = connMenu.style.display === 'none';
+      if (!isClosed) { connMenu.style.display = 'none'; return; }
+
+      connMenu.innerHTML = '';
+      const defBtn = document.createElement('button');
+      defBtn.className = `bw-dropdown-item ${!selectedConnId ? 'bw-selected' : ''}`;
+      defBtn.textContent = 'Default Model';
+      defBtn.onclick = () => {
+        selectedConnId = '';
+        localStorage.removeItem('bw_selected_connection_id');
+        popup.querySelector('#bw-conn-label').textContent = 'Default Model';
+        connMenu.style.display = 'none';
+      };
+      connMenu.appendChild(defBtn);
+
+      connectionsList.forEach(c => {
+        const item = document.createElement('button');
+        item.className = `bw-dropdown-item ${c.id === selectedConnId ? 'bw-selected' : ''}`;
+        item.textContent = c.name;
+        item.onclick = () => {
+          selectedConnId = c.id;
+          localStorage.setItem('bw_selected_connection_id', c.id);
+          popup.querySelector('#bw-conn-label').textContent = c.name;
+          connMenu.style.display = 'none';
+        };
+        connMenu.appendChild(item);
+      });
+      connMenu.style.display = 'flex';
     };
+
+    // ─── History Dropdown ───
+    histBtn.onclick = (e) => {
+      e.stopPropagation();
+      connMenu.style.display = 'none';
+      const isClosed = histMenu.style.display === 'none';
+      if (!isClosed) { histMenu.style.display = 'none'; return; }
+
+      histMenu.innerHTML = '';
+      const history = getStoredHistory();
+      if (!history.length) {
+        histMenu.innerHTML = '<div style="padding:6px; color:#a89a83; text-align:center;">No recent questions</div>';
+      } else {
+        history.forEach(h => {
+          const item = document.createElement('button');
+          item.className = 'bw-dropdown-item';
+          item.innerHTML = `<span class="bw-history-badge">[${h.mode}]</span><span>${h.query.slice(0, 32)}…</span>`;
+          item.onclick = () => {
+            activeTab = h.mode;
+            popup.querySelectorAll('.bw-tab-btn').forEach(b => b.classList.toggle('bw-active', b.dataset.tab === activeTab));
+            inputTa.value = h.query;
+            rawCurrentAnswer = h.answer;
+            outputBox.innerHTML = renderMarkdown(h.answer);
+            actionsRow.style.display = 'flex';
+            setDeskMood('singing');
+            histMenu.style.display = 'none';
+          };
+          histMenu.appendChild(item);
+        });
+      }
+      histMenu.style.display = 'flex';
+    };
+
+    document.addEventListener('click', () => {
+      connMenu.style.display = 'none';
+      histMenu.style.display = 'none';
+    }, { once: true });
+
+    // Mascot Easter Egg: Hover or click to munch leaf
+    mascotWrap.onmouseenter = () => { if (!isGenerating) setDeskMood('munching'); };
     mascotWrap.onmouseleave = () => {
-      if (!isGenerating) setDeskMood(outputBox.textContent.startsWith('The scholar') ? 'reading' : 'singing');
+      if (!isGenerating) setDeskMood(outputBox.textContent.startsWith('Ask me') ? 'reading' : 'singing');
     };
     mascotWrap.onclick = () => {
       setDeskMood('munching');
-      setTimeout(() => {
-        if (!isGenerating) setDeskMood('reading');
-      }, 1500);
+      setTimeout(() => { if (!isGenerating) setDeskMood('reading'); }, 1500);
     };
 
     function updatePlaceholder() {
@@ -367,7 +559,7 @@ export function setup(ctx) {
         thesaurus: "Enter word or concept to spice up (e.g. 'condescending smirk')...",
         research: "Ask domain knowledge (e.g. '18th-century poison brewing protocols')...",
         next_step: "Ask what a persona or archetype should do next in this scene...",
-        translate: "Enter phrase and target language/vernacular (e.g. 'Translate to Victorian French' or 'Dwarven dialect')...",
+        translate: "Enter phrase and target language/vernacular (e.g. 'Victorian French' or 'Dwarven dialect')...",
       };
       inputTa.placeholder = placeholders[activeTab];
     }
@@ -389,8 +581,8 @@ export function setup(ctx) {
       isGenerating = true;
       setDeskMood('thinking');
       askBtn.disabled = true;
-      askBtn.textContent = 'Scholar is reading…';
-      outputBox.textContent = 'Consulting historical tomes…';
+      askBtn.textContent = 'Buggy is reading…';
+      outputBox.innerHTML = '<i>Buggy is consulting the archives…</i>';
       actionsRow.style.display = 'none';
 
       ctx.sendToBackend({
@@ -403,8 +595,7 @@ export function setup(ctx) {
     };
 
     injectBtn.onclick = () => {
-      const text = outputBox.textContent.trim();
-      if (text) populateComposer(text);
+      if (rawCurrentAnswer) populateComposer(rawCurrentAnswer);
     };
   }
 
@@ -424,18 +615,14 @@ export function setup(ctx) {
     }
   }
 
-  // ─── BACKEND IPC HANDLERS ──────────────────────────────────────────────────
+  // ─── BACKEND IPC RECEIVER ───────────────────────────────────────────────────
   const unsubMsg = ctx.onBackendMessage((payload) => {
     if (payload.type === 'bookworm:connections') {
       connectionsList = payload.connections || [];
-      const connPicker = document.getElementById('bw-conn-picker');
-      if (connPicker) {
-        let connOptions = '<option value="">Default Connection</option>';
-        connectionsList.forEach((c) => {
-          const sel = c.id === selectedConnId ? 'selected' : '';
-          connOptions += `<option value="${c.id}" ${sel}>${c.name}</option>`;
-        });
-        connPicker.innerHTML = connOptions;
+      const label = document.getElementById('bw-conn-label');
+      if (label) {
+        const found = connectionsList.find(c => c.id === selectedConnId);
+        label.textContent = found ? found.name : 'Default Model';
       }
     }
 
@@ -444,10 +631,11 @@ export function setup(ctx) {
       const askBtn = document.getElementById('bw-ask-btn');
       const outputBox = document.getElementById('bw-output-box');
       const actionsRow = document.getElementById('bw-result-actions');
+      const inputTa = document.getElementById('bw-query-input');
 
       if (askBtn) {
         askBtn.disabled = false;
-        askBtn.textContent = 'Consult Tome';
+        askBtn.textContent = 'Consult Buggy';
       }
 
       if (payload.error) {
@@ -456,15 +644,26 @@ export function setup(ctx) {
         return;
       }
 
-      setDeskMood('singing'); // Mascot sings with joy upon delivering the answer!
+      rawCurrentAnswer = payload.answer;
+      setDeskMood('singing');
+
       if (outputBox) {
-        outputBox.textContent = payload.answer;
+        outputBox.innerHTML = renderMarkdown(payload.answer);
         if (actionsRow) actionsRow.style.display = 'flex';
+      }
+
+      // Record in recent history
+      if (inputTa && inputTa.value.trim()) {
+        pushHistory({
+          mode: payload.mode || activeTab,
+          query: inputTa.value.trim(),
+          answer: payload.answer
+        });
       }
     }
   });
 
-  // ─── MOUNT PERCHED WIDGET ON RIM ───────────────────────────────────────────
+  // ─── MOUNT PERCHED WIDGET ON COMPOSER RIM ──────────────────────────────────
   function mountPerchedWidget() {
     document.getElementById('bw-toolbar-btn')?.remove();
 
@@ -476,11 +675,11 @@ export function setup(ctx) {
     const btn = document.createElement('button');
     btn.id = 'bw-corner-widget';
     btn.type = 'button';
-    btn.title = 'BookWorm (Click to open Grimoire)';
+    btn.title = 'Ask Buggy (Click to consult)';
 
     const img = document.createElement('img');
     img.className = 'bw-sprite-img';
-    img.alt = 'BookWorm';
+    img.alt = 'Buggy';
     img.src = SPRITES.sleeping;
 
     btn.appendChild(img);
