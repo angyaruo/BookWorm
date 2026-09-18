@@ -1,13 +1,10 @@
 
-
-// ─── 🐛 SPRITE URLS ───────────────────────────
+// ─── 🐛 fockin buge ─────────────────
 const SLEEPING_WORM_IMG = "https://files.catbox.moe/zjfl6h.png";
 const AWAKE_WORM_IMG    = "https://files.catbox.moe/xg4da6.png";
 
-if (typeof Image !== 'undefined') {
-  const preloadImg = new Image();
-  preloadImg.src = AWAKE_WORM_IMG;
-}
+// Fallback mini vector if images fail to load or URLs are empty
+const FALLBACK_SVG = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 24"><circle cx="30" cy="14" r="7" fill="%2322c55e"/><circle cx="20" cy="14" r="8" fill="%2384cc16"/><circle cx="10" cy="12" r="9" fill="%23facc15"/><circle cx="7" cy="10" r="1.5" fill="%23000"/><circle cx="13" cy="10" r="1.5" fill="%23000"/><polygon points="10,2 2,7 10,10 18,7" fill="%231e293b"/></svg>`;
 
 export function setup(ctx) {
   let activeTab = 'tot';
@@ -18,17 +15,20 @@ export function setup(ctx) {
 
   // ─── STYLES ──────────────────────────────────────────────────────────────────
   const removeStyle = ctx.dom.addStyle(`
-    [data-component="InputArea"] {
+    /* Break through Lumiverse parent clipping boundaries */
+    [data-component="InputArea"],
+    [class*="_inputArea_"],
+    [class*="_composer_"],
+    form:has([data-component="InputArea"]) {
       position: relative !important;
       overflow: visible !important;
     }
 
     #bw-corner-widget {
       position: absolute;
-      /* Anchors his feet to the top border of the composer */
-      bottom: calc(100% - 4px);
-      right: 26px;
-      z-index: 40;
+      top: -26px; /* Pinned directly onto the top rim */
+      right: 28px;
+      z-index: 50;
       background: transparent;
       border: none;
       padding: 0;
@@ -42,7 +42,7 @@ export function setup(ctx) {
     }
 
     #bw-corner-widget:hover {
-      transform: translateY(-2px) scale(1.05);
+      transform: translateY(-2px) scale(1.08);
     }
 
     #bw-corner-widget:active {
@@ -50,10 +50,12 @@ export function setup(ctx) {
     }
 
     .bw-sprite-img {
-      height: 42px;
+      height: 38px;
       width: auto;
+      min-width: 32px;
+      min-height: 24px;
       object-fit: contain;
-      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.55));
+      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.6));
       pointer-events: none;
       -webkit-user-drag: none;
       transition: opacity 0.12s ease;
@@ -160,11 +162,12 @@ export function setup(ctx) {
   function updateWidgetSprite() {
     const img = document.querySelector('#bw-corner-widget img');
     if (!img) return;
-    img.src = isOpen ? AWAKE_WORM_IMG : SLEEPING_WORM_IMG;
+    const targetSrc = isOpen ? AWAKE_WORM_IMG : SLEEPING_WORM_IMG;
+    img.src = targetSrc || FALLBACK_SVG;
   }
 
   function populateComposer(text) {
-    const ta = document.querySelector('[data-component="InputArea"] textarea, textarea[name="chat-message"], textarea');[cite: 2]
+    const ta = document.querySelector('[data-component="InputArea"] textarea, textarea[name="chat-message"], textarea');
     if (!ta) return;
     const nativeSetter = Object.getOwnPropertyDescriptor(
       window.HTMLTextAreaElement.prototype,
@@ -178,11 +181,11 @@ export function setup(ctx) {
     ta.dispatchEvent(new Event('input', { bubbles: true }));
     ta.dispatchEvent(new Event('change', { bubbles: true }));
     ta.focus();
-    toggleWidget(false); // Put him back to sleep after inserting text!
+    toggleWidget(false);
   }
 
   function getRecentSceneContext() {
-    const cards = document.querySelectorAll('[data-component="MessageContent"], [class*="_content_"], [class*="_prose_"]');[cite: 2]
+    const cards = document.querySelectorAll('[data-component="MessageContent"], [class*="_content_"], [class*="_prose_"]');
     const snippets = [];
     Array.from(cards).slice(-4).forEach(el => {
       const txt = el.innerText?.trim();
@@ -298,7 +301,7 @@ export function setup(ctx) {
   }
 
   function toggleWidget(forceState) {
-    const inputArea = document.querySelector('[data-component="InputArea"]');[cite: 2]
+    const inputArea = document.querySelector('[data-component="InputArea"]');
     if (!inputArea) return;
 
     isOpen = typeof forceState === 'boolean' ? forceState : !isOpen;
@@ -356,14 +359,21 @@ export function setup(ctx) {
 
     if (document.getElementById('bw-corner-widget')) return;
 
-    const inputArea = document.querySelector('[data-component="InputArea"]');[cite: 2]
+    const inputArea = document.querySelector('[data-component="InputArea"]');
     if (!inputArea) return;
 
     const btn = document.createElement('button');
     btn.id = 'bw-corner-widget';
     btn.type = 'button';
     btn.title = 'BookWorm (Click to wake/consult)';
-    btn.innerHTML = `<img src="${isOpen ? AWAKE_WORM_IMG : SLEEPING_WORM_IMG}" class="bw-sprite-img" alt="BookWorm" />`;
+
+    const img = document.createElement('img');
+    img.className = 'bw-sprite-img';
+    img.alt = 'BookWorm';
+    img.src = SLEEPING_WORM_IMG || FALLBACK_SVG;
+    img.onerror = () => { img.src = FALLBACK_SVG; };
+
+    btn.appendChild(img);
 
     btn.onclick = (e) => {
       e.preventDefault();
