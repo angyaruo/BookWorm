@@ -58,6 +58,136 @@ const IC = {
   close: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
 };
 
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function renderInlineMarkdown(value) {
+  const codeSpans = [];
+  let text = String(value).replace(/(`+)(.*?)\1(?!`)/g, (_, ticks, code) => {
+    const normalized = code.startsWith(' ') && code.endsWith(' ') && code.trim()
+      ? code.slice(1, -1)
+      : code;
+    const token = `\u0000BWCODE${codeSpans.length}\u0000`;
+    codeSpans.push(`<code class="bw-md-inline-code">${escapeHtml(normalized)}</code>`);
+    return token;
+  });
+
+  text = escapeHtml(text)
+    .replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/___(.+?)___/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/__(.+?)__/g, '<strong>$1</strong>')
+    .replace(/~~(.+?)~~/g, '<del>$1</del>')
+    .replace(/(^|[^*])\*([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>')
+    .replace(/(^|[^_])_([^_\n]+?)_(?!_)/g, '$1<em>$2</em>');
+
+  return text.replace(/\u0000BWCODE(\d+)\u0000/g, (_, index) => codeSpans[Number(index)] || '');
+}
+
+// Safe, dependency-free Markdown for model output. Block parsing prevents
+// headings, quotes, lists, and code fences from leaking their source markers.
+export function renderMarkdown(text) {
+  if (!text) return '';
+
+  const lines = String(text).replace(/\r\n?/g, '\n').split('\n');
+  const html = [];
+  let paragraph = [];
+  let listType = null;
+  let listItems = [];
+  let quoteLines = [];
+  let codeLines = [];
+  let codeLanguage = '';
+  let inCodeFence = false;
+
+  const flushParagraph = () => {
+    if (!paragraph.length) return;
+    html.push(`<p class="bw-md-paragraph">${paragraph.map(renderInlineMarkdown).join('<br>')}</p>`);
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (!listType || !listItems.length) return;
+    html.push(`<${listType} class="bw-md-list">${listItems.map(item => `<li>${renderInlineMarkdown(item)}</li>`).join('')}</${listType}>`);
+    listType = null;
+    listItems = [];
+  };
+  const flushQuote = () => {
+    if (!quoteLines.length) return;
+    html.push(`<blockquote class="bw-md-quote">${quoteLines.map(renderInlineMarkdown).join('<br>')}</blockquote>`);
+    quoteLines = [];
+  };
+  const flushTextBlocks = () => {
+    flushParagraph();
+    flushList();
+    flushQuote();
+  };
+  const flushCode = () => {
+    const languageClass = codeLanguage ? ` language-${escapeHtml(codeLanguage)}` : '';
+    html.push(`<pre class="bw-md-code-block"><code class="${languageClass.trim()}">${escapeHtml(codeLines.join('\n'))}</code></pre>`);
+    codeLines = [];
+    codeLanguage = '';
+  };
+
+  for (const line of lines) {
+    const fence = line.match(/^\s*```\s*([\w+-]*)\s*$/);
+    if (fence) {
+      if (inCodeFence) {
+        flushCode();
+        inCodeFence = false;
+      } else {
+        flushTextBlocks();
+        inCodeFence = true;
+        codeLanguage = fence[1] || '';
+      }
+      continue;
+    }
+    if (inCodeFence) {
+      codeLines.push(line);
+      continue;
+    }
+
+    const heading = line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/);
+    const quote = line.match(/^\s*>\s?(.*)$/);
+    const unordered = line.match(/^\s*[-*+]\s+(.+)$/);
+    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+
+    if (!line.trim()) {
+      flushTextBlocks();
+    } else if (heading) {
+      flushTextBlocks();
+      const level = heading[1].length;
+      html.push(`<h${level} class="bw-md-heading bw-md-h${level}">${renderInlineMarkdown(heading[2])}</h${level}>`);
+    } else if (quote) {
+      flushParagraph();
+      flushList();
+      quoteLines.push(quote[1]);
+    } else if (unordered || ordered) {
+      flushParagraph();
+      flushQuote();
+      const nextListType = unordered ? 'ul' : 'ol';
+      if (listType && listType !== nextListType) flushList();
+      listType = nextListType;
+      listItems.push((unordered || ordered)[1]);
+    } else if (/^\s*(?:---+|___+|\*\*\*+)\s*$/.test(line)) {
+      flushTextBlocks();
+      html.push('<hr class="bw-md-rule">');
+    } else {
+      flushList();
+      flushQuote();
+      paragraph.push(line);
+    }
+  }
+
+  if (inCodeFence) flushCode();
+  flushTextBlocks();
+  return html.join('');
+}
+
 export function setup(ctx) {
   let activeTab = 'tot';
   let isGenerating = false;
@@ -336,11 +466,45 @@ export function setup(ctx) {
     }
 
     /* ─── Markdown Rendering Elements inside Dialogue ─── */
-    .bw-md-bullet { display: flex; gap: 6px; margin: 3px 0; align-items: flex-start; }
-    .bw-md-dot { color: #8c6d37; font-weight: bold; flex-shrink: 0; }
-    .bw-md-gap { height: 7px; }
-    .bw-results-box b { color: #16120e; font-weight: 700; }
-    .bw-results-box i { font-style: italic; color: #3b3127; }
+    .bw-results-box .bw-md-paragraph { margin: 0 0 8px; }
+    .bw-results-box .bw-md-paragraph:last-child { margin-bottom: 0; }
+    .bw-results-box strong { color: #16120e; font-weight: 700; }
+    .bw-results-box em { font-style: italic; color: #3b3127; }
+    .bw-results-box del { color: #675b4d; }
+    .bw-results-box .bw-md-heading {
+      margin: 10px 0 5px; color: #1c1712; line-height: 1.2;
+      font-family: Georgia, "Times New Roman", serif;
+    }
+    .bw-results-box .bw-md-heading:first-child { margin-top: 0; }
+    .bw-results-box .bw-md-h1 { font-size: 19px; }
+    .bw-results-box .bw-md-h2 { font-size: 17px; }
+    .bw-results-box .bw-md-h3 { font-size: 15px; }
+    .bw-results-box .bw-md-h4,
+    .bw-results-box .bw-md-h5,
+    .bw-results-box .bw-md-h6 { font-size: 13px; }
+    .bw-results-box .bw-md-quote {
+      margin: 7px 0; padding: 5px 9px;
+      border-left: 3px solid #8c6d37;
+      background: rgba(140, 109, 55, 0.09);
+      color: #4b4034; font-style: italic;
+    }
+    .bw-results-box .bw-md-list { margin: 6px 0 8px; padding-left: 21px; }
+    .bw-results-box .bw-md-list li { margin: 3px 0; padding-left: 1px; }
+    .bw-results-box .bw-md-inline-code {
+      padding: 1px 4px; border-radius: 3px;
+      background: #e8e0d2; color: #5d2a24;
+      font: 0.92em Consolas, "Courier New", monospace;
+    }
+    .bw-results-box .bw-md-code-block {
+      margin: 7px 0; padding: 8px 10px; overflow-x: auto;
+      border: 1px solid #c8baa5; border-radius: 4px;
+      background: #211c17; color: #f3eadb;
+      white-space: pre; line-height: 1.45;
+      font: 11px Consolas, "Courier New", monospace;
+    }
+    .bw-results-box .bw-md-rule {
+      border: 0; border-top: 1px solid #c8baa5; margin: 9px 0;
+    }
 
     .bw-card-action {
       display: inline-flex; align-items: center; gap: 4px;
@@ -351,24 +515,6 @@ export function setup(ctx) {
     }
     .bw-card-action:hover { background: #8c6d37; color: #110e0c; }
   `);
-
-  // ─── LIGHTWEIGHT MARKDOWN RESOLVER ──────────────────────────────────────────
-  function renderMarkdown(text) {
-    if (!text) return '';
-    let html = text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-
-    html = html.replace(/\*\*\*(.*?)\*\*\*/g, '<b><i>$1</i></b>');
-    html = html.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
-    html = html.replace(/\*(.*?)\*/g, '<i>$1</i>');
-    html = html.replace(/__(.*?)__/g, '<u>$1</u>');
-    html = html.replace(/^\s*[-*]\s+(.*$)/gim, '<div class="bw-md-bullet"><span class="bw-md-dot">•</span><span>$1</span></div>');
-    html = html.replace(/\n\n+/g, '<div class="bw-md-gap"></div>');
-    html = html.replace(/\n/g, '<br/>');
-    return html;
-  }
 
   // ─── QUERY HISTORY STORAGE (LAST 5) ─────────────────────────────────────────
   function getStoredHistory() {

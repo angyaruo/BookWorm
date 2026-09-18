@@ -6,7 +6,7 @@
 ### *Your miniature literary companion, vocabulary savant, and in-chat research desk*
 
 [![Lumiverse](https://img.shields.io/badge/Lumiverse-Spindle_Extension-22c55e?style=for-the-badge&logo=gnome&logoColor=white)](#)
-[![Version](https://img.shields.io/badge/Version-1.1.1-8c6d37?style=for-the-badge)](#)
+[![Version](https://img.shields.io/badge/Version-1.2.0-8c6d37?style=for-the-badge)](#)
 [![Theme](https://img.shields.io/badge/Aesthetic-Grimoire_Tome-ffd166?style=for-the-badge&labelColor=181412)](#)
 
 <p align="center">
@@ -41,6 +41,8 @@ Buggy is fully animated to mirror your writing flow:
 * **Leaf Munching (Easter Egg):** Click Buggy inside the desk to feed him fresh foliage. He keeps munching until you close the desk.
 
 Each time the desk opens, Buggy also rotates through 20 peculiar greetings, thoughts, and insect facts.
+
+Buggy's answers render clean Markdown for headings, blockquotes, lists, emphasis, inline code, and fenced code blocks.
 
 ---
 
