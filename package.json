@@ -1,0 +1,8 @@
+{
+  "name": "lumiverse-bookworm",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/backend.js",
+  "module": "dist/backend.js",
+  "description": "BookWorm - Literary companion & research desk for Lumiverse"
+}
