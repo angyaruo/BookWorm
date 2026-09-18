@@ -4,10 +4,10 @@
 const SPRITES = {
   sleeping: "https://files.catbox.moe/fsxx8g.png",
   awake:    "https://files.catbox.moe/dyulgy.png",
-  reading:  "https://files.catbox.moe/YOUR_READING.png",
-  thinking: "https://files.catbox.moe/YOUR_THINKING.png",
-  munching: "https://files.catbox.moe/YOUR_MUNCHING.png",
-  singing:  "https://files.catbox.moe/YOUR_SINGING.png",
+  reading:  "https://files.catbox.moe/ayrl12.png",
+  thinking: "https://files.catbox.moe/goxqqa.png",
+  munching: "https://files.catbox.moe/1njkd6.png",
+  singing:  "https://files.catbox.moe/cvud99.png",
 };
 
 // Preload all sprites into memory for instant transitions
