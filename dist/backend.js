@@ -108,6 +108,8 @@ spindle.onFrontendMessage(async (payload, userId) => {
     }
 
     const generationInput = {
+      type: 'quiet',
+      userId,
       connection_id: targetConn.id,
       messages: [
         { role: 'system', content: MODE_PROMPTS[mode] },
