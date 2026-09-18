@@ -409,7 +409,7 @@ export function setup(ctx) {
       <div class="bw-header">
         <div>
           <div class="bw-header-title">Ask Buggy</div>
-          <div class="bw-header-subtitle">Your literary companion & research savant</div>
+          <div class="bw-header-subtitle">Tip = 1 leaf</div>
         </div>
         <div class="bw-header-actions">
           <button class="bw-conn-pill-btn" id="bw-conn-toggle-btn" title="Select Model Connection">
@@ -448,7 +448,7 @@ export function setup(ctx) {
         <div class="bw-bottom-mascot-wrap" id="bw-desk-mascot-btn" title="Click to give Buggy a leaf!">
           <img src="${getDeskSpriteUrl(currentDeskMood)}" id="bw-desk-mascot-img" class="bw-desk-mascot" alt="Buggy" />
         </div>
-        <div class="bw-results-box" id="bw-output-box">Ask me anything above! I'll dig into the archives for you.</div>
+        <div class="bw-results-box" id="bw-output-box">i am buge. i dig in book for you. is this okay? let me know.</div>
       </div>
 
       <div id="bw-result-actions" style="display:none; justify-content:flex-end; gap:6px;">
