@@ -45,9 +45,9 @@ Buggy is fully animated to mirror your writing flow:
 ## 🛠️ Quick Installation
 
 1. Copy this repository URL.
-2. In Lumiverse, navigate to **Settings → Extensions**[cite: 4, 5].
-3. Paste the URL into **Install from Source** and press **Install**[cite: 4].
-4. Open any chat, and Buggy will be waiting on your message composer[cite: 4]!
+2. In Lumiverse, navigate to **Settings → Extensions**.
+3. Paste the URL into **Install from Source** and press **Install**.
+4. Open any chat, and Buggy will be waiting on your message composer!
 
 > **Pro-Tip:** Click the **chain link icon** inside Buggy's header to bind him to a fast, lightweight model (like *Gemini Flash* or *Claude Haiku*) so you never burn expensive flagship tokens on dictionary lookups.
 
