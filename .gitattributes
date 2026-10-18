@@ -1,0 +1,7 @@
+* text=auto
+src/** text eol=lf
+scripts/** text eol=lf
+tests/** text eol=lf
+dist/*.js text eol=lf linguist-generated=true
+data/lexicon/** text eol=lf linguist-generated=true
+assets/*.png binary

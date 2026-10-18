@@ -1,8 +1,8 @@
 {
-  "version": "1.2.0",
+  "version": "2.0.0",
   "name": "BookWorm",
   "identifier": "lumiverse_bookworm",
-  "description": "Your miniature literary companion, vocabulary savant, and in-chat research desk.",
+  "description": "Your miniature writing companion: an offline English dictionary and thesaurus, plus model-assisted research, translation, and story advice.",
   "author": "angyaruo",
   "permissions": [
     "generation",
@@ -11,5 +11,10 @@
   ],
   "entry_backend": "dist/backend.js",
   "entry_frontend": "dist/frontend.js",
-  "interceptorTimeoutMs": 10000
+  "github": "https://github.com/angyaruo/BookWorm",
+  "homepage": "https://github.com/angyaruo/BookWorm",
+  "storage_seed_files": [
+    { "from": "data/lexicon/", "to": "lexicon/", "overwrite": true, "required": true },
+    { "from": "licenses/", "to": "licenses/", "overwrite": true, "required": true }
+  ]
 }
