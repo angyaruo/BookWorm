@@ -123,6 +123,47 @@ try {
     assert.equal(await popup.count(),0); assert.equal(await page.locator('#bw-corner-widget').count(),0);
     assert.deepEqual(errors,[]); assert.deepEqual(external,[]);
   });
+  for (const viewport of [{width:1280,height:900},{width:390,height:844}]) {
+    await check(`ordinary HTTP submissions at ${viewport.width}px: buttons and keyboard, all tools`, async () => {
+      const httpPage = await browser.newPage({viewport});
+      const httpErrors = [];
+      httpPage.on('pageerror', error => httpErrors.push(error.message));
+      // Route a non-loopback HTTP origin to our local harness. Unlike localhost,
+      // this is genuinely an insecure browser context, not a mocked crypto API.
+      await httpPage.route('http://bookworm.test/**', async route => {
+        const target = new URL(route.request().url());
+        await route.fulfill({response:await route.fetch({url:url + target.pathname + target.search})});
+      });
+      try {
+        await httpPage.goto('http://bookworm.test/');
+        assert.deepEqual(await httpPage.evaluate(() => ({secure:isSecureContext, uuid:typeof crypto.randomUUID})), {secure:false,uuid:'undefined'});
+        await httpPage.getByRole('button',{name:'Open BookWorm'}).click();
+        const httpInput = httpPage.locator('#bw-query-input');
+        const httpOutput = httpPage.locator('#bw-output-box');
+        for (const [query, keyboard] of [['happy',false],['obsolete',true]]) {
+          await httpInput.fill(query);
+          if (keyboard) await httpInput.press('Enter'); else await httpPage.locator('#bw-ask-btn').click();
+          await httpPage.waitForFunction(word => document.querySelector('.bw-result-heading h3')?.textContent === word, query);
+          assert(await httpOutput.locator('.bw-sense').count() > 0);
+        }
+        for (const mode of ['tot','research','next_step','translate']) {
+          await httpPage.locator(`[data-tab="${mode}"]`).click();
+          for (const keyboard of [false,true]) {
+            await httpInput.fill(`A writing question for ${mode}, ${keyboard ? 'keyboard' : 'button'}`);
+            if (keyboard) await httpInput.press('Control+Enter'); else await httpPage.locator('#bw-ask-btn').click();
+            await httpPage.waitForFunction(() => document.querySelector('#bw-output-box')?.getAttribute('aria-busy') === 'false');
+            assert.match(await httpOutput.textContent(), /simulated preview answer/);
+          }
+        }
+        const requests = await httpPage.evaluate(() => bookwormTest.messages);
+        assert.equal(requests.filter(m => m.type === 'bookworm:lookup_word').length, 2);
+        assert.equal(requests.filter(m => m.type === 'bookworm:consult').length, 8);
+        assert.equal(new Set(requests.map(m => m.requestId)).size, 10);
+        assert(requests.every(m => typeof m.requestId === 'string' && m.requestId.length <= 150));
+        assert.deepEqual(httpErrors, []);
+      } finally { await httpPage.close(); }
+    });
+  }
   console.log(`${checks} UI checks passed; screenshots in work/screenshots`);
 } finally {
   await browser.close();

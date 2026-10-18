@@ -159,6 +159,23 @@ function renderMarkdown(text) {
   return html.join("");
 }
 
+// src/request-id.js
+var sequence = 0;
+function createRequestId(cryptoApi = globalThis.crypto) {
+  try {
+    if (typeof cryptoApi?.randomUUID === "function") return cryptoApi.randomUUID();
+  } catch {
+  }
+  try {
+    if (typeof cryptoApi?.getRandomValues === "function") {
+      const bytes = cryptoApi.getRandomValues(new Uint8Array(16));
+      return `bw-${Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+    }
+  } catch {
+  }
+  return `bw-${Date.now().toString(36)}-${(++sequence).toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
 // src/frontend.js
 var MODES = {
   thesaurus: { label: "Thesaurus", title: "Find the right word.", description: "An English dictionary & thesaurus, right here on your desk.", placeholder: "A word to explore\u2026", number: "01", sample: ["serendipity", "haunting", "luminous"] },
@@ -328,7 +345,7 @@ ${entry.definition}${entry.examples.length ? "\n" + entry.examples.map((s) => `>
     fields.actions.hidden = true;
     notice();
     fields.scroll.scrollTop = 0;
-    const id = crypto.randomUUID();
+    const id = createRequestId();
     active = { id, query, mode: activeTab, text: "" };
     setBusy(true);
     mood("thinking");

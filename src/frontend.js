@@ -1,6 +1,7 @@
 import css from './book.css';
 import { SPRITES, getNextBuggyMessage } from './buggy.js';
 import { escapeHtml as esc, renderMarkdown } from './markdown.js';
+import { createRequestId } from './request-id.js';
 
 const MODES = {
   thesaurus: { label: 'Thesaurus', title: 'Find the right word.', description: 'An English dictionary & thesaurus, right here on your desk.', placeholder: 'A word to explore…', number: '01', sample: ['serendipity', 'haunting', 'luminous'] },
@@ -131,7 +132,7 @@ export function setup(ctx) {
     fields.input.value = query;
     rawAnswer = ''; fields.actions.hidden = true; notice();
     fields.scroll.scrollTop = 0;
-    const id = crypto.randomUUID();
+    const id = createRequestId();
     active = { id, query, mode: activeTab, text: '' };
     setBusy(true); mood('thinking');
     fields.output.innerHTML = '<div class="bw-loading">one moment. finding the good words…</div>';

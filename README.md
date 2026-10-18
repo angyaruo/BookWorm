@@ -101,6 +101,9 @@ clearly labeled **simulated** model responses. Tests cover the corpus, lookup,
 operator scope, limits, timeout/cancellation, tab resets, Markdown, Buggy,
 history, preserving composer drafts, mobile layout, and cleanup. They do not
 replace a live Lumiverse install/update test with your particular provider.
+Submission tests also run every tool via buttons and keyboard on a non-loopback
+HTTP origin at desktop and mobile widths. Request IDs work on HTTP LAN addresses
+as well as HTTPS/localhost; they do not require `crypto.randomUUID`.
 
 Lexical data attribution and license are in [data/README.md](data/README.md) and
 `licenses/`. Bundled mascot images are the existing BookWorm sprites, moved from
