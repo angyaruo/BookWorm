@@ -1,4 +1,4 @@
-# BookWorm 2.0
+# BookWorm 2.1
 
 Your miniature literary companion, now with a real dictionary on the shelf.
 Buggy lives on your Lumiverse composer and opens a forest-green, paper-lined
@@ -64,9 +64,24 @@ cancellation. There is no automatic retry that could incur duplicate charges.
 ## Small comforts
 
 - Switching tools clears both the question and answer.
-- The last five answers are saved in this browser's local storage; no separate
-  BookWorm analytics or cloud history service is used. Avoid sensitive queries
-  on shared browser profiles. AI requests still go through your selected provider.
+- **Appearance** in Book settings offers Paper (the original/default), Dark
+  (a midnight-green library), or Follow system. The choice is saved in this
+  browser and changes only BookWorm, not the surrounding Lumiverse theme.
+- **Saved searches** in Book settings accepts any whole number from 1 to 50
+  (default: 5). Recent questions retains each search and its full result, including
+  dictionary meanings, examples and related words or the original AI answer.
+  Reopening a saved entry makes no dictionary/model request and preserves your
+  chat draft. Repeating the same query in the same tool replaces its old entry;
+  different tools keep separate entries. Partial-answer warnings are retained.
+- Lowering the history limit removes the oldest entries; raising it cannot
+  recover previously removed results. Existing 2.0 history/settings are kept.
+  History persists across book closures and page reloads via browser local
+  storage. If storage is blocked/full, results remain available for the current
+  session and a warning explains that they could not be saved.
+- Preferences/history are local to this browser and site address, not synced
+  across devices or between HTTP/HTTPS addresses. There is no separate BookWorm
+  analytics or cloud history service. Avoid sensitive queries on shared browser
+  profiles. AI requests still go through your selected provider.
 - Copy an answer, or inscribe it after your existing composer draft.
 - Headings, blockquotes, lists, emphasis, inline code and fenced code render as
   safe Markdown. Raw HTML is escaped. This is a lightweight Markdown subset,
@@ -104,6 +119,9 @@ replace a live Lumiverse install/update test with your particular provider.
 Submission tests also run every tool via buttons and keyboard on a non-loopback
 HTTP origin at desktop and mobile widths. Request IDs work on HTTP LAN addresses
 as well as HTTPS/localhost; they do not require `crypto.randomUUID`.
+Appearance/history checks cover migration, reload persistence, system-theme
+changes, input validation, retention/eviction, reopening without requests,
+storage quota failures, and dark desktop/mobile screenshots.
 
 Lexical data attribution and license are in [data/README.md](data/README.md) and
 `licenses/`. Bundled mascot images are the existing BookWorm sprites, moved from
