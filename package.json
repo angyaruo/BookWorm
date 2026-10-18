@@ -1,8 +1,19 @@
 {
   "name": "lumiverse-bookworm",
-  "version": "1.2.0",
+  "version": "2.0.0",
   "type": "module",
   "main": "dist/backend.js",
   "module": "dist/backend.js",
-  "description": "BookWorm - Literary companion & research desk for Lumiverse"
+  "description": "BookWorm - Literary companion & offline dictionary for Lumiverse",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:dictionary": "node scripts/build-dictionary.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:ui": "node tests/ui.mjs",
+    "preview": "node scripts/preview.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.11",
+    "@playwright/test": "1.56.1"
+  }
 }
