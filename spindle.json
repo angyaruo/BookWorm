@@ -1,5 +1,5 @@
 {
-  "version": "2.1.0",
+  "version": "2.2.1",
   "name": "BookWorm",
   "identifier": "lumiverse_bookworm",
   "description": "Your miniature writing companion: an offline English dictionary and thesaurus, plus model-assisted research, translation, and story advice.",
@@ -7,7 +7,9 @@
   "permissions": [
     "generation",
     "chats",
-    "ui_panels"
+    "ui_panels",
+    "web_search",
+    "personas"
   ],
   "entry_backend": "dist/backend.js",
   "entry_frontend": "dist/frontend.js",
