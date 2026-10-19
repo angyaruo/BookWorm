@@ -3,6 +3,9 @@ import { SPRITES, getNextBuggyMessage } from './buggy.js';
 import { escapeHtml as esc, renderMarkdown } from './markdown.js';
 import { createRequestId } from './request-id.js';
 import { createHistory, historyLimit, MAX_HISTORY_LIMIT } from './history.js';
+import { createSelectionAssistant } from './selection-assistant.js';
+import { sourceCards } from './source-cards.js';
+import { NATIVE_COMPOSER, setDraft } from './selection.js';
 
 const MODES = {
   thesaurus: { label: 'Thesaurus', title: 'Find the right word.', description: 'An English dictionary & thesaurus, right here on your desk.', placeholder: 'A word to explore…', number: '01', sample: ['serendipity', 'haunting', 'luminous'] },
@@ -30,12 +33,14 @@ export function setup(ctx) {
   let activeTab = 'thesaurus';
   let connections = [], selectedConnection = safeConnection();
   let fed = false, disposed = false, rawAnswer = '', visibleHistory = [];
+  let helper, webActive = null, webTimer, answerSources = [];
   const savedSettings = readSaved('bw_settings_v2', {});
   const settings = {
     timeoutSeconds: [120,180,300].includes(savedSettings.timeoutSeconds) ? savedSettings.timeoutSeconds : 180,
     extendedOutput: savedSettings.extendedOutput === true,
     theme: ['paper','dark','system'].includes(savedSettings.theme) ? savedSettings.theme : 'paper',
     historyLimit: historyLimit(savedSettings.historyLimit),
+    selectionHelp: savedSettings.selectionHelp !== false,
   };
   const cachedLookups = new Map();
   const domLifetime = new AbortController();
@@ -55,6 +60,7 @@ export function setup(ctx) {
   const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
   function applyTheme() {
     if (popup) popup.dataset.theme = settings.theme === 'system' ? (systemTheme.matches ? 'dark' : 'paper') : settings.theme;
+    helper?.theme();
   }
   listen(systemTheme, 'change', applyTheme);
   function mood(value) { if (fields) fields.mascot.src = SPRITES[fed ? 'munching' : value]; }
@@ -71,6 +77,27 @@ export function setup(ctx) {
   }
   function transportFailure(id) {
     if (active?.id === id) finish({ answer: readableStream(active.text), error: 'The connection to Lumiverse was interrupted. Try again when it reconnects.' });
+    if (webActive === id) finishWeb({ error: 'Lumiverse disconnected. Your previous answer is unchanged.' });
+  }
+  function cancelWeb() {
+    const id = webActive; webActive = null; clearTimeout(webTimer);
+    if (id) send({ type: 'bookworm:cancel', requestId: id });
+  }
+  function finishWeb(payload) {
+    webActive = null; clearTimeout(webTimer);
+    if (!fields) return;
+    fields.webStatus.textContent = payload.error || 'Search snippets returned. Open sources to verify details.';
+    fields.webRun.textContent = 'Search online';
+    if (payload.sources?.length) fields.webResults.innerHTML = sourceCards(payload.sources);
+  }
+  function searchOnline() {
+    if (webActive) { cancelWeb(); finishWeb({ error: 'Search stopped. Previous results are unchanged.' }); return; }
+    const query = fields.webQuery.value.trim();
+    if (!query) { fields.webQuery.focus(); return; }
+    const id = createRequestId(); webActive = id;
+    fields.webRun.textContent = 'Stop search'; fields.webStatus.textContent = 'Searching your configured Lumiverse provider…';
+    webTimer = setTimeout(() => { if (webActive === id) { cancelWeb(); finishWeb({ error: 'Search timed out. Your previous answer is unchanged.' }); } }, 60000);
+    send({ type: 'bookworm:web_search', requestId: id, query });
   }
   function setBusy(busy) {
     fields.ask.textContent = busy ? 'Stop' : activeTab === 'thesaurus' ? 'Look up →' : 'Ask Buggy →';
@@ -85,10 +112,13 @@ export function setup(ctx) {
     send({ type: 'bookworm:cancel', requestId: request.id });
     if (keep && fields) {
       rawAnswer = readableStream(request.text).trim();
-      fields.output.innerHTML = rawAnswer ? renderMarkdown(rawAnswer) : '';
+      const restored = !rawAnswer && request.searchBefore && request.previousAnswer;
+      answerSources = restored ? request.previousSources : request.sources || [];
+      if (restored) rawAnswer = request.previousAnswer;
+      fields.output.innerHTML = (rawAnswer ? renderMarkdown(rawAnswer) : '') + sourceCards(answerSources);
       fields.actions.hidden = !rawAnswer;
-      notice(rawAnswer ? 'Stopped. Your partial answer is kept.' : 'Stopped. You can try another question.');
-      if (rawAnswer) record({ mode: request.mode, query: request.query, answer: rawAnswer, warning: 'Stopped. Your partial answer is kept.' });
+      notice(restored ? 'Stopped. Your previous answer is unchanged.' : rawAnswer ? 'Stopped. Your partial answer is kept.' : 'Stopped. You can try another question.');
+      if (rawAnswer && !restored) record({ mode: request.mode, query: request.query, answer: rawAnswer, sources: answerSources, warning: 'Stopped. Your partial answer is kept.' });
       setBusy(false); mood('reading');
     }
   }
@@ -114,10 +144,13 @@ export function setup(ctx) {
     fields.badge.textContent = activeTab === 'thesaurus' ? 'Offline library' : 'AI assistance';
     fields.source.hidden = activeTab !== 'thesaurus';
     fields.shortcut.textContent = activeTab === 'thesaurus' ? 'Enter to look up' : 'Ctrl / ⌘ + Enter';
+    fields.webTools.hidden = activeTab === 'thesaurus';
+    fields.searchBefore.parentElement.hidden = activeTab !== 'research';
     setBusy(false);
   }
   function emptyPage() {
     rawAnswer = '';
+    answerSources = [];
     fields.actions.hidden = true;
     notice();
     fields.scroll.scrollTop = 0;
@@ -125,7 +158,8 @@ export function setup(ctx) {
     fields.output.innerHTML = `<div class="bw-welcome"><div class="bw-welcome-mark" aria-hidden="true">❧</div><h3>${offline ? 'Every word opens a door.' : 'A little room for your next idea.'}</h3><p>${offline ? 'Explore meanings, find a synonym, or follow a word somewhere unexpected. Your dictionary is already on the shelf.' : 'Set down a question. Buggy will consult your chosen model and bring the answer back to this page.'}</p>${offline ? `<div class="bw-suggestions">${MODES.thesaurus.sample.map(wordButton).join('')}</div>` : ''}</div>`;
   }
   function selectTab(tab, focus = true) {
-    cancel(); activeTab = tab;
+    cancel(); cancelWeb(); activeTab = tab;
+    fields.webPanel.hidden = true; fields.webQuery.value = ''; fields.webResults.innerHTML = ''; fields.webStatus.textContent = ''; fields.webRun.textContent = 'Search online'; fields.searchBefore.checked = false;
     fields.input.value = '';
     fields.history.hidden = true; fields.settings.hidden = true;
     updateExpanded();
@@ -146,11 +180,15 @@ export function setup(ctx) {
     if (active) { cancel(true); return; }
     const query = (queryOverride ?? fields.input.value).trim();
     if (!query) { fields.input.focus(); return; }
+    const searchBefore = activeTab === 'research' && fields.searchBefore.checked;
+    const webQuery = fields.webQuery.value.trim();
+    if (searchBefore && !webQuery) { fields.webPanel.hidden = false; fields.webQuery.focus(); notice('Enter short search terms below. Only those terms go to your search provider.'); return; }
     fields.input.value = query;
-    rawAnswer = ''; fields.actions.hidden = true; notice();
+    const previousAnswer = rawAnswer, previousSources = answerSources;
+    rawAnswer = ''; answerSources = []; fields.actions.hidden = true; notice();
     fields.scroll.scrollTop = 0;
     const id = createRequestId();
-    active = { id, query, mode: activeTab, text: '' };
+    active = { id, query, mode: activeTab, text: '', previousAnswer, previousSources, searchBefore };
     setBusy(true); mood('thinking');
     fields.output.innerHTML = '<div class="bw-loading">one moment. finding the good words…</div>';
     if (activeTab === 'thesaurus' && cachedLookups.has(query.toLowerCase())) {
@@ -164,7 +202,7 @@ export function setup(ctx) {
       finish({ answer: text, error: 'Lumiverse did not finish the request. Your partial answer has been kept; try again when the connection is ready.' });
     }, (activeTab === 'thesaurus' ? 45 : settings.timeoutSeconds + 15) * 1000);
     send({ type: activeTab === 'thesaurus' ? 'bookworm:lookup_word' : 'bookworm:consult', requestId: id, mode: activeTab, query,
-      ...(activeTab !== 'thesaurus' ? { connectionId: selectedConnection || null, timeoutSeconds: settings.timeoutSeconds, extendedOutput: settings.extendedOutput, sceneContext: activeTab === 'next_step' ? recentScene() : '' } : {}),
+      ...(activeTab !== 'thesaurus' ? { connectionId: selectedConnection || null, timeoutSeconds: settings.timeoutSeconds, extendedOutput: settings.extendedOutput, sceneContext: activeTab === 'next_step' ? recentScene() : '', ...(searchBefore ? { searchBefore: true, webQuery } : {}) } : {}),
     });
   }
   function finish(payload) {
@@ -176,14 +214,16 @@ export function setup(ctx) {
       if (cachedLookups.size > 20) cachedLookups.delete(cachedLookups.keys().next().value);
       showLookup(payload.lookup);
     } else {
-      rawAnswer = payload.answer || '';
-      fields.output.innerHTML = renderMarkdown(rawAnswer);
+      const restore = request.searchBefore && payload.error && !payload.answer;
+      rawAnswer = restore ? request.previousAnswer : payload.answer || '';
+      answerSources = restore ? request.previousSources : payload.sources || request.sources || [];
+      fields.output.innerHTML = renderMarkdown(rawAnswer) + sourceCards(answerSources);
       fields.actions.hidden = !rawAnswer;
     }
-    notice(payload.error || payload.warning || '');
+    notice((payload.error || payload.warning || '') + (request.searchBefore && payload.error && !payload.answer && request.previousAnswer ? ' Your previous answer is kept below.' : ''));
     setBusy(false); mood(payload.error ? 'reading' : 'singing');
     fields.status.textContent = payload.error ? 'Couldn’t finish this request' : payload.warning ? 'Partial answer saved' : request.mode === 'thesaurus' ? 'From your local dictionary' : 'Ready for your next thought';
-    if (rawAnswer || payload.lookup) record({ mode: request.mode, query: request.query, answer: rawAnswer, warning: payload.error || payload.warning || '', ...(payload.lookup ? { lookup: payload.lookup } : {}) });
+    if ((payload.answer || payload.lookup) && !(payload.error && !payload.answer)) record({ mode: request.mode, query: request.query, answer: rawAnswer, sources: answerSources, warning: payload.error || payload.warning || '', ...(payload.lookup ? { lookup: payload.lookup } : {}) });
   }
   function recentScene() {
     const cards = [...document.querySelectorAll('[data-component="MessageContent"], [class*="_prose_"]')].filter(el => !popup?.contains(el));
@@ -230,11 +270,12 @@ export function setup(ctx) {
     popup.style.left = `${left}px`; popup.style.top = `${top}px`;
   }
   function close(focus = true) {
-    cancel(); popup?.remove(); popup = null; fields = null; rawAnswer = ''; fed = false;
+    cancel(); cancelWeb(); popup?.remove(); popup = null; fields = null; rawAnswer = ''; fed = false;
     if (widget) { widget.setAttribute('aria-expanded','false'); widget.querySelector('img').src = SPRITES.sleeping; if (focus) widget.focus(); }
   }
   function open() {
     if (popup) { close(); return; }
+    helper?.dismiss();
     fed = false;
     popup = document.createElement('section');
     popup.id = 'bw-popup-window'; popup.setAttribute('role','dialog'); popup.setAttribute('aria-label','BookWorm writing desk');
@@ -249,11 +290,14 @@ export function setup(ctx) {
       <div class="bw-buggy-note"><button type="button" class="bw-mascot-button" data-action="feed" aria-label="Give Buggy a leaf" title="Give Buggy a leaf"><img id="bw-desk-mascot-img" src="${SPRITES.reading}" alt="Buggy" draggable="false"></button><p class="bw-buggy-name">A note from Buggy</p><p class="bw-buggy-line">${esc(getNextBuggyMessage())}</p><p class="bw-leaf-note">Good words. Fair price. One leaf.</p></div></aside>
       <section class="bw-page" id="bw-page" role="tabpanel"><div class="bw-page-header"><span class="bw-eyebrow" id="bw-chapter"></span><span class="bw-badge" id="bw-badge"></span></div><h2 class="bw-page-title" id="bw-title"></h2><p class="bw-description" id="bw-description"></p>
       <label class="bw-query-label" id="bw-query-label" for="bw-query-input"></label><div class="bw-input-shell"><textarea id="bw-query-input" rows="2" spellcheck="true"></textarea><button type="button" class="bw-primary" id="bw-ask-btn" data-action="ask"></button></div><div class="bw-query-meta"><span id="bw-status" role="status"></span><span id="bw-shortcut"></span></div>
+      <div id="bw-web-tools" class="bw-web-tools" hidden><label><input type="checkbox" id="bw-search-before"> Search before answering</label><button type="button" class="bw-action" data-action="web-toggle">Look this up online…</button></div>
+      <div id="bw-web-panel" class="bw-web-panel" hidden><label for="bw-web-query">Search terms · sent to your configured search provider</label><div><input id="bw-web-query" maxlength="500" placeholder="Short topic or lore keywords"><button type="button" class="bw-action" id="bw-web-run" data-action="web-run">Search online</button></div><p>No chat context is added. Requires Web Search permission and a configured provider in Lumiverse. Search alone uses no model.</p><p id="bw-web-status" role="status"></p><div id="bw-web-results"></div></div>
       <div id="bw-notice" class="bw-notice" role="status" hidden></div><div class="bw-output-scroll" id="bw-scroll"><article class="bw-output" id="bw-output-box" aria-label="Answer" aria-busy="false"></article></div>
       <footer class="bw-footer"><span id="bw-source"><a href="https://en-word.net/" target="_blank" rel="noopener noreferrer">Open English WordNet 2025</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a></span><div class="bw-result-actions" id="bw-result-actions" hidden><button type="button" class="bw-action" data-action="copy">Copy</button><button type="button" class="bw-action" data-action="insert">Inscribe into composer ↗</button></div></footer>
       </section></div>
       <section class="bw-popover" id="bw-settings" aria-label="Book settings" hidden><h2>Book settings</h2>
       <label for="bw-theme">Appearance</label><select id="bw-theme"><option value="paper">Paper · original</option><option value="dark">Dark · midnight library</option><option value="system">Follow system</option></select>
+      <label for="bw-selection-help">Selection companion</label><select id="bw-selection-help"><option value="on">On · help with highlighted text</option><option value="off">Off · open the book manually</option></select>
       <label for="bw-history-limit">Saved searches</label><input id="bw-history-limit" type="number" min="1" max="${MAX_HISTORY_LIMIT}" step="1" required aria-describedby="bw-history-help"><p id="bw-history-help">Keep 1–${MAX_HISTORY_LIMIT} searches with their full results in this browser. Lowering the limit removes the oldest saved results. Increasing it cannot recover removed results.</p>
       <label for="bw-connection">Writing model</label><select id="bw-connection"></select><label for="bw-length">Answer length</label><select id="bw-length"><option value="standard">Standard</option><option value="extended">Extended · longer passages</option></select><label for="bw-timeout">Time to wait</label><select id="bw-timeout"><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="300">5 minutes</option></select><p>Extended answers allow up to 8,192 output tokens and may cost more. The thesaurus always uses the installed dictionary.</p></section>
       <section class="bw-popover" id="bw-history" aria-label="Recent questions" hidden></section>`;
@@ -262,11 +306,15 @@ export function setup(ctx) {
     document.body.appendChild(popup);
     const find = id => popup.querySelector(`#${id}`);
     fields = { page:find('bw-page'), input:find('bw-query-input'), label:find('bw-query-label'), output:find('bw-output-box'), ask:find('bw-ask-btn'), scroll:find('bw-scroll'), notice:find('bw-notice'), status:find('bw-status'), shortcut:find('bw-shortcut'), title:find('bw-title'), description:find('bw-description'), chapter:find('bw-chapter'), badge:find('bw-badge'), source:find('bw-source'), actions:find('bw-result-actions'), mascot:find('bw-desk-mascot-img'), settings:find('bw-settings'), history:find('bw-history'), connection:find('bw-connection') };
+    Object.assign(fields, { webTools: find('bw-web-tools'), webPanel: find('bw-web-panel'), webQuery: find('bw-web-query'), webResults: find('bw-web-results'), webStatus: find('bw-web-status'), webRun: find('bw-web-run'), searchBefore: find('bw-search-before') });
+    find('bw-selection-help').value = settings.selectionHelp ? 'on' : 'off';
     find('bw-length').value = settings.extendedOutput ? 'extended' : 'standard';
     find('bw-timeout').value = String(settings.timeoutSeconds);
     find('bw-theme').value = settings.theme;
     find('bw-history-limit').value = String(settings.historyLimit);
     popup.onchange = e => {
+      if (e.target.id === 'bw-search-before') { fields.webPanel.hidden = !e.target.checked; return; }
+      if (e.target.id === 'bw-selection-help') { settings.selectionHelp = e.target.value === 'on'; if (!settings.selectionHelp) helper?.dismiss(); }
       if (e.target.id === 'bw-connection') {
         selectedConnection = e.target.value;
         try { localStorage.setItem('bw_selected_connection_id', selectedConnection); } catch {}
@@ -295,7 +343,7 @@ export function setup(ctx) {
         // displayed snapshot, not the newly reordered saved-history array.
         const item = visibleHistory[Number(button.dataset.history)]; if (!item) return;
         selectTab(item.mode); fields.input.value = item.query;
-        if (item.lookup) showLookup(item.lookup); else { rawAnswer = item.answer; fields.output.innerHTML = renderMarkdown(item.answer); fields.actions.hidden = !rawAnswer; }
+        if (item.lookup) showLookup(item.lookup); else { rawAnswer = item.answer; answerSources = item.sources || []; fields.output.innerHTML = renderMarkdown(item.answer) + sourceCards(answerSources); fields.actions.hidden = !rawAnswer; }
         if (typeof item.warning === 'string') notice(item.warning);
         fields.status.textContent = 'From your recent questions'; mood('singing'); return;
       }
@@ -305,17 +353,17 @@ export function setup(ctx) {
         case 'history': togglePopover('history'); break;
         case 'feed': fed = true; mood('munching'); break;
         case 'ask': start(); break;
+        case 'web-toggle': fields.webPanel.hidden = !fields.webPanel.hidden; if (!fields.webPanel.hidden) fields.webQuery.focus(); break;
+        case 'web-run': searchOnline(); break;
         case 'copy':
           try { await navigator.clipboard.writeText(rawAnswer); if (fields) fields.status.textContent = 'Copied to clipboard'; }
           catch { notice('Clipboard access is unavailable. You can select and copy the answer directly.'); }
           break;
         case 'insert': {
-          const input = composer?.querySelector('textarea:not(#bw-query-input)');
+          const input = composer?.querySelector(NATIVE_COMPOSER) || composer?.querySelector('textarea:not(#bw-query-input)');
           if (!input || !rawAnswer) { notice('The chat composer is unavailable. Copy the answer instead.'); break; }
-          const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value')?.set;
           const value = input.value ? `${input.value}\n\n${rawAnswer}` : rawAnswer;
-          if (setter) setter.call(input,value); else input.value = value;
-          input.dispatchEvent(new Event('input',{ bubbles:true })); input.dispatchEvent(new Event('change',{ bubbles:true }));
+          setDraft(input, value);
           close(false); input.focus(); break;
         }
       }
@@ -328,6 +376,7 @@ export function setup(ctx) {
         return;
       }
       if (e.target === fields.input && e.key === 'Enter' && !e.isComposing && (e.ctrlKey || e.metaKey || (activeTab === 'thesaurus' && !e.shiftKey))) { e.preventDefault(); start(); }
+      if (e.target === fields.webQuery && e.key === 'Enter' && !e.isComposing) { e.preventDefault(); searchOnline(); }
       const tab = e.target.closest('[role=tab]');
       if (tab && ['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Home','End'].includes(e.key)) {
         e.preventDefault(); const keys = Object.keys(MODES); const i = keys.indexOf(activeTab);
@@ -341,12 +390,19 @@ export function setup(ctx) {
   }
   const unsubscribe = ctx.onBackendMessage(payload => {
     if (!payload) return;
+    if (helper?.receive(payload)) return;
+    if (webActive && payload.requestId === webActive && payload.type === 'bookworm:result') { finishWeb(payload); return; }
     if (payload.type === 'bookworm:connections') { connections = payload.connections || []; refreshConnections(); return; }
     if (!active || payload.requestId !== active.id || !fields) return;
+    if (payload.type === 'bookworm:sources') {
+      active.sources = payload.sources || [];
+      fields.output.innerHTML = renderMarkdown(readableStream(active.text)) + sourceCards(active.sources);
+      return;
+    }
     if (payload.type === 'bookworm:result_chunk') {
       const nearBottom = fields.scroll.scrollHeight - fields.scroll.scrollTop - fields.scroll.clientHeight < 70;
       active.text += payload.text || '';
-      fields.output.innerHTML = renderMarkdown(readableStream(active.text));
+      fields.output.innerHTML = renderMarkdown(readableStream(active.text)) + sourceCards(active.sources);
       if (nearBottom) fields.scroll.scrollTop = fields.scroll.scrollHeight;
     } else if (payload.type === 'bookworm:result') finish(payload);
   });
@@ -354,14 +410,15 @@ export function setup(ctx) {
     if (disposed) return;
     if (widget?.isConnected) return;
     if (popup) close(false);
-    composer?.classList.remove('bw-composer-host');
+    composer?.classList.remove('bw-composer-host', 'bw-composer-static');
     composer = document.querySelector('[data-component="InputArea"]');
     if (!composer) return;
     composer.classList.add('bw-composer-host');
+    if (getComputedStyle(composer).position === 'static') composer.classList.add('bw-composer-static');
     widget = document.createElement('button'); widget.id = 'bw-corner-widget'; widget.type = 'button';
     widget.setAttribute('aria-label','Open BookWorm'); widget.setAttribute('aria-expanded','false'); widget.setAttribute('aria-controls','bw-popup-window');
     widget.innerHTML = `<img src="${SPRITES.sleeping}" alt="" draggable="false">`;
-    widget.onclick = e => { e.preventDefault(); open(); };
+    widget.onclick = e => { e.preventDefault(); if (!popup && helper?.activate()) return; open(); };
     composer.appendChild(widget);
   }
   listen(document,'click',e => {
@@ -372,5 +429,9 @@ export function setup(ctx) {
   if (window.visualViewport) listen(window.visualViewport,'resize',position);
   const observer = new MutationObserver(mount);
   observer.observe(document.body,{childList:true,subtree:true}); mount();
-  return () => { disposed = true; observer.disconnect(); domLifetime.abort(); close(false); widget?.remove(); composer?.classList.remove('bw-composer-host'); unsubscribe(); removeStyle(); };
+  helper = createSelectionAssistant({ ctx, getComposer: () => composer, getWidget: () => widget, getSettings: () => settings, getConnection: () => selectedConnection,
+    getTheme: () => settings.theme === 'system' ? (systemTheme.matches ? 'dark' : 'paper') : settings.theme, bookOpen: () => !!popup, openBook: open,
+    perk: awake => { if (widget && !popup) { widget.querySelector('img').src = SPRITES[awake ? 'awake' : 'sleeping']; widget.setAttribute('aria-expanded', String(awake)); widget.setAttribute('aria-controls', awake ? 'bw-selection-helper' : 'bw-popup-window'); } },
+  });
+  return () => { disposed = true; observer.disconnect(); domLifetime.abort(); helper.dispose(); close(false); widget?.remove(); composer?.classList.remove('bw-composer-host', 'bw-composer-static'); unsubscribe(); removeStyle(); };
 }

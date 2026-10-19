@@ -167,6 +167,7 @@ test('installable manifest includes required dictionary and license seeds', asyn
   const manifest = JSON.parse(await readFile(new URL('../spindle.json',import.meta.url)));
   const pkg = JSON.parse(await readFile(new URL('../package.json',import.meta.url)));
   assert.equal(manifest.version,pkg.version);
+  assert(manifest.permissions.includes('web_search'));
   assert(manifest.storage_seed_files.some(s => s.from === 'data/lexicon/' && s.to === 'lexicon/' && s.required && s.overwrite));
   assert(manifest.storage_seed_files.some(s => s.from === 'licenses/' && s.required));
   assert((await readFile(new URL('../licenses/CC-BY-4.0.txt',import.meta.url),'utf8')).includes('Creative Commons'));
