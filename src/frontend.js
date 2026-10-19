@@ -2,6 +2,7 @@ import css from './book.css';
 import { SPRITES, getNextBuggyMessage } from './buggy.js';
 import { escapeHtml as esc, renderMarkdown } from './markdown.js';
 import { createRequestId } from './request-id.js';
+import { createHistory, historyLimit, MAX_HISTORY_LIMIT } from './history.js';
 
 const MODES = {
   thesaurus: { label: 'Thesaurus', title: 'Find the right word.', description: 'An English dictionary & thesaurus, right here on your desk.', placeholder: 'A word to explore…', number: '01', sample: ['serendipity', 'haunting', 'luminous'] },
@@ -20,7 +21,7 @@ const ICONS = {
 function readSaved(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; }
 }
-function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* storage may be disabled */ } }
+function save(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; } }
 function safeConnection() { try { return localStorage.getItem('bw_selected_connection_id') || ''; } catch { return ''; } }
 function readableStream(text) { return text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, ''); }
 
@@ -28,18 +29,34 @@ export function setup(ctx) {
   let popup, widget, composer, fields, active = null, watchdog;
   let activeTab = 'thesaurus';
   let connections = [], selectedConnection = safeConnection();
-  let fed = false, disposed = false, rawAnswer = '';
+  let fed = false, disposed = false, rawAnswer = '', visibleHistory = [];
   const savedSettings = readSaved('bw_settings_v2', {});
-  const settings = { timeoutSeconds: [120,180,300].includes(savedSettings.timeoutSeconds) ? savedSettings.timeoutSeconds : 180, extendedOutput: savedSettings.extendedOutput === true };
+  const settings = {
+    timeoutSeconds: [120,180,300].includes(savedSettings.timeoutSeconds) ? savedSettings.timeoutSeconds : 180,
+    extendedOutput: savedSettings.extendedOutput === true,
+    theme: ['paper','dark','system'].includes(savedSettings.theme) ? savedSettings.theme : 'paper',
+    historyLimit: historyLimit(savedSettings.historyLimit),
+  };
   const cachedLookups = new Map();
   const domLifetime = new AbortController();
   const removeStyle = ctx.dom.addStyle(css);
   const listen = (el, type, fn) => el.addEventListener(type, fn, { signal: domLifetime.signal });
-  const history = () => {
-    const saved = readSaved('bw_query_history', []);
-    return Array.isArray(saved) ? saved.filter(h => h && Object.hasOwn(MODES,h.mode) && typeof h.query === 'string' && typeof h.answer === 'string').slice(0,5) : [];
-  };
-  function record(item) { save('bw_query_history', [item, ...history().filter(h => h.mode !== item.mode || h.query !== item.query)].slice(0,5)); }
+  const savedHistory = createHistory({
+    read: () => readSaved('bw_query_history', []),
+    write: items => localStorage.setItem('bw_query_history', JSON.stringify(items)),
+    isValid: h => h && Object.hasOwn(MODES,h.mode) && typeof h.query === 'string' && typeof h.answer === 'string',
+    limit: settings.historyLimit,
+  });
+  const history = () => savedHistory.list();
+  function historySaveStatus(saved) {
+    if (!saved && fields) notice([fields.notice.textContent, 'History could not be saved in this browser. These results are available only for this session.'].filter(Boolean).join(' '));
+  }
+  function record(item) { historySaveStatus(savedHistory.record(item)); }
+  const systemTheme = window.matchMedia('(prefers-color-scheme: dark)');
+  function applyTheme() {
+    if (popup) popup.dataset.theme = settings.theme === 'system' ? (systemTheme.matches ? 'dark' : 'paper') : settings.theme;
+  }
+  listen(systemTheme, 'change', applyTheme);
   function mood(value) { if (fields) fields.mascot.src = SPRITES[fed ? 'munching' : value]; }
   function notice(text = '') {
     if (!fields) return;
@@ -71,7 +88,7 @@ export function setup(ctx) {
       fields.output.innerHTML = rawAnswer ? renderMarkdown(rawAnswer) : '';
       fields.actions.hidden = !rawAnswer;
       notice(rawAnswer ? 'Stopped. Your partial answer is kept.' : 'Stopped. You can try another question.');
-      if (rawAnswer) record({ mode: request.mode, query: request.query, answer: rawAnswer });
+      if (rawAnswer) record({ mode: request.mode, query: request.query, answer: rawAnswer, warning: 'Stopped. Your partial answer is kept.' });
       setBusy(false); mood('reading');
     }
   }
@@ -147,7 +164,7 @@ export function setup(ctx) {
       finish({ answer: text, error: 'Lumiverse did not finish the request. Your partial answer has been kept; try again when the connection is ready.' });
     }, (activeTab === 'thesaurus' ? 45 : settings.timeoutSeconds + 15) * 1000);
     send({ type: activeTab === 'thesaurus' ? 'bookworm:lookup_word' : 'bookworm:consult', requestId: id, mode: activeTab, query,
-      ...(activeTab !== 'thesaurus' ? { connectionId: selectedConnection || null, ...settings, sceneContext: activeTab === 'next_step' ? recentScene() : '' } : {}),
+      ...(activeTab !== 'thesaurus' ? { connectionId: selectedConnection || null, timeoutSeconds: settings.timeoutSeconds, extendedOutput: settings.extendedOutput, sceneContext: activeTab === 'next_step' ? recentScene() : '' } : {}),
     });
   }
   function finish(payload) {
@@ -166,7 +183,7 @@ export function setup(ctx) {
     notice(payload.error || payload.warning || '');
     setBusy(false); mood(payload.error ? 'reading' : 'singing');
     fields.status.textContent = payload.error ? 'Couldn’t finish this request' : payload.warning ? 'Partial answer saved' : request.mode === 'thesaurus' ? 'From your local dictionary' : 'Ready for your next thought';
-    if (rawAnswer) record({ mode: request.mode, query: request.query, answer: rawAnswer, ...(payload.lookup ? { lookup: payload.lookup } : {}) });
+    if (rawAnswer || payload.lookup) record({ mode: request.mode, query: request.query, answer: rawAnswer, warning: payload.error || payload.warning || '', ...(payload.lookup ? { lookup: payload.lookup } : {}) });
   }
   function recentScene() {
     const cards = [...document.querySelectorAll('[data-component="MessageContent"], [class*="_prose_"]')].filter(el => !popup?.contains(el));
@@ -191,7 +208,8 @@ export function setup(ctx) {
     target.hidden = !open;
     if (kind === 'history' && open) {
       const items = history();
-      fields.history.innerHTML = '<h2>Recently opened</h2>' + (items.length ? items.map((item,i) => `<button type="button" class="bw-history-item" data-history="${i}"><small>${esc(MODES[item.mode].label)}</small>${esc(item.query.slice(0,80))}</button>`).join('') : '<p>Your last five answers will appear here.</p>');
+      visibleHistory = items;
+      fields.history.innerHTML = `<h2>Recently opened</h2><p>${items.length} / ${settings.historyLimit} saved searches · stored in this browser</p>` + (items.length ? items.map((item,i) => `<button type="button" class="bw-history-item" data-history="${i}"><small>${esc(MODES[item.mode].label)}</small>${esc(item.query.slice(0,80))}</button>`).join('') : `<p>Your last ${settings.historyLimit} searches and their results will appear here. Change the limit in Book settings.</p>`);
     }
     if (kind === 'settings' && open) { refreshConnections(); send({ type: 'bookworm:get_connections' }); }
     updateExpanded();
@@ -220,6 +238,7 @@ export function setup(ctx) {
     fed = false;
     popup = document.createElement('section');
     popup.id = 'bw-popup-window'; popup.setAttribute('role','dialog'); popup.setAttribute('aria-label','BookWorm writing desk');
+    applyTheme();
     popup.innerHTML = `
       <header class="bw-header"><div class="bw-brand"><div class="bw-seal">${ICONS.book}</div><div><h1>BookWorm</h1><p class="bw-edition">A small companion for big ideas</p></div></div><div class="bw-tools">
         <button type="button" class="bw-icon-btn" data-action="history" aria-label="Recent questions" aria-expanded="false" aria-controls="bw-history">${ICONS.history}</button>
@@ -233,7 +252,10 @@ export function setup(ctx) {
       <div id="bw-notice" class="bw-notice" role="status" hidden></div><div class="bw-output-scroll" id="bw-scroll"><article class="bw-output" id="bw-output-box" aria-label="Answer" aria-busy="false"></article></div>
       <footer class="bw-footer"><span id="bw-source"><a href="https://en-word.net/" target="_blank" rel="noopener noreferrer">Open English WordNet 2025</a> · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">CC BY 4.0</a></span><div class="bw-result-actions" id="bw-result-actions" hidden><button type="button" class="bw-action" data-action="copy">Copy</button><button type="button" class="bw-action" data-action="insert">Inscribe into composer ↗</button></div></footer>
       </section></div>
-      <section class="bw-popover" id="bw-settings" aria-label="Book settings" hidden><h2>Book settings</h2><label for="bw-connection">Writing model</label><select id="bw-connection"></select><label for="bw-length">Answer length</label><select id="bw-length"><option value="standard">Standard</option><option value="extended">Extended · longer passages</option></select><label for="bw-timeout">Time to wait</label><select id="bw-timeout"><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="300">5 minutes</option></select><p>Extended answers allow up to 8,192 output tokens and may cost more. The thesaurus always uses the installed dictionary.</p></section>
+      <section class="bw-popover" id="bw-settings" aria-label="Book settings" hidden><h2>Book settings</h2>
+      <label for="bw-theme">Appearance</label><select id="bw-theme"><option value="paper">Paper · original</option><option value="dark">Dark · midnight library</option><option value="system">Follow system</option></select>
+      <label for="bw-history-limit">Saved searches</label><input id="bw-history-limit" type="number" min="1" max="${MAX_HISTORY_LIMIT}" step="1" required aria-describedby="bw-history-help"><p id="bw-history-help">Keep 1–${MAX_HISTORY_LIMIT} searches with their full results in this browser. Lowering the limit removes the oldest saved results. Increasing it cannot recover removed results.</p>
+      <label for="bw-connection">Writing model</label><select id="bw-connection"></select><label for="bw-length">Answer length</label><select id="bw-length"><option value="standard">Standard</option><option value="extended">Extended · longer passages</option></select><label for="bw-timeout">Time to wait</label><select id="bw-timeout"><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="300">5 minutes</option></select><p>Extended answers allow up to 8,192 output tokens and may cost more. The thesaurus always uses the installed dictionary.</p></section>
       <section class="bw-popover" id="bw-history" aria-label="Recent questions" hidden></section>`;
     // Portal outside the host composer: transformed ancestors otherwise change
     // the containing block of position:fixed and can clip or offset the book.
@@ -242,6 +264,8 @@ export function setup(ctx) {
     fields = { page:find('bw-page'), input:find('bw-query-input'), label:find('bw-query-label'), output:find('bw-output-box'), ask:find('bw-ask-btn'), scroll:find('bw-scroll'), notice:find('bw-notice'), status:find('bw-status'), shortcut:find('bw-shortcut'), title:find('bw-title'), description:find('bw-description'), chapter:find('bw-chapter'), badge:find('bw-badge'), source:find('bw-source'), actions:find('bw-result-actions'), mascot:find('bw-desk-mascot-img'), settings:find('bw-settings'), history:find('bw-history'), connection:find('bw-connection') };
     find('bw-length').value = settings.extendedOutput ? 'extended' : 'standard';
     find('bw-timeout').value = String(settings.timeoutSeconds);
+    find('bw-theme').value = settings.theme;
+    find('bw-history-limit').value = String(settings.historyLimit);
     popup.onchange = e => {
       if (e.target.id === 'bw-connection') {
         selectedConnection = e.target.value;
@@ -249,7 +273,17 @@ export function setup(ctx) {
       }
       if (e.target.id === 'bw-length') settings.extendedOutput = e.target.value === 'extended';
       if (e.target.id === 'bw-timeout') settings.timeoutSeconds = Number(e.target.value);
-      save('bw_settings_v2', settings);
+      if (e.target.id === 'bw-theme') { settings.theme = e.target.value; applyTheme(); }
+      if (e.target.id === 'bw-history-limit') {
+        if (!e.target.validity.valid) {
+          e.target.value = String(settings.historyLimit);
+          notice(`Choose a whole number from 1 to ${MAX_HISTORY_LIMIT} for saved searches.`);
+          return;
+        }
+        settings.historyLimit = Number(e.target.value);
+        historySaveStatus(savedHistory.setLimit(settings.historyLimit));
+      }
+      if (!save('bw_settings_v2', settings)) notice('Settings could not be saved in this browser. They will apply only for this session.');
     };
     popup.onclick = async e => {
       const button = e.target.closest('button'); if (!button || !popup.contains(button)) return;
@@ -257,9 +291,12 @@ export function setup(ctx) {
       if (button.dataset.tab) { selectTab(button.dataset.tab); return; }
       if (button.dataset.word) { cancel(); if (activeTab !== 'thesaurus') selectTab('thesaurus'); start(button.dataset.word); return; }
       if (button.dataset.history !== undefined) {
-        const item = history()[Number(button.dataset.history)]; if (!item) return;
+        // A request may complete while this menu is open. Resolve against the
+        // displayed snapshot, not the newly reordered saved-history array.
+        const item = visibleHistory[Number(button.dataset.history)]; if (!item) return;
         selectTab(item.mode); fields.input.value = item.query;
         if (item.lookup) showLookup(item.lookup); else { rawAnswer = item.answer; fields.output.innerHTML = renderMarkdown(item.answer); fields.actions.hidden = !rawAnswer; }
+        if (typeof item.warning === 'string') notice(item.warning);
         fields.status.textContent = 'From your recent questions'; mood('singing'); return;
       }
       switch (button.dataset.action) {

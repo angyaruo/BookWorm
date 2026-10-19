@@ -2,6 +2,7 @@ import { chromium } from '@playwright/test';
 import { strict as assert } from 'node:assert';
 import { mkdir } from 'node:fs/promises';
 import { previewServer } from '../scripts/preview.mjs';
+import { checkPreferences } from './preferences-ui.mjs';
 
 const server = previewServer();
 await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
@@ -164,6 +165,7 @@ try {
       } finally { await httpPage.close(); }
     });
   }
+  await checkPreferences(browser, url, check);
   console.log(`${checks} UI checks passed; screenshots in work/screenshots`);
 } finally {
   await browser.close();
