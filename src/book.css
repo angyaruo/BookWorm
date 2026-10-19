@@ -11,7 +11,6 @@
 #bw-selection-helper * { box-sizing:border-box; }
 #bw-selection-helper [hidden] { display:none !important; }
 #bw-selection-helper header { display:flex; gap:12px; justify-content:space-between; align-items:flex-start; border-bottom:1px solid var(--bw-line); padding-bottom:12px; }
-#bw-selection-helper h2 { font:20px/1.2 Georgia,serif; margin:3px 0 0; color:var(--bw-ink); }
 #bw-selection-helper small { color:var(--bw-muted); font-size:11px; }
 #bw-selection-helper p { margin:9px 0; overflow-wrap:anywhere; }
 #bw-selection-helper .bw-selected { font:italic 16px/1.45 Georgia,serif; border-left:2px solid #9c8658; padding-left:12px; white-space:pre-wrap; }

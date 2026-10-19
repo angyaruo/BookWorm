@@ -2,6 +2,7 @@ import { escapeHtml as esc, renderMarkdown } from './markdown.js';
 import { createRequestId } from './request-id.js';
 import { NATIVE_COMPOSER, selectedKind, replacementFor, preserveCase, setDraft } from './selection.js';
 import { sourceCards } from './source-cards.js';
+import { capturePolishContext, polishIdentity } from './polish.js';
 
 const MESSAGE = '[data-component="MessageContent"], [class*="_prose_"]';
 const OWN = '#bw-selection-helper, #bw-popup-window, #bw-corner-widget';
@@ -16,7 +17,7 @@ export function createSelectionAssistant({ ctx, getComposer, getWidget, getSetti
     const markers = [...(host?.querySelectorAll('[data-spindle-scope^="chat:"]') || [])];
     // Scope markers may live in the composer's sibling mount points.
     if (!markers.length) markers.push(...document.querySelectorAll('[data-spindle-scope^="chat:"]'));
-    return location.href + '|' + markers.map(el => el.getAttribute('data-spindle-scope')).sort().join('|');
+    return location.href + '|' + JSON.stringify(polishIdentity(ctx)) + '|' + markers.map(el => el.getAttribute('data-spindle-scope')).sort().join('|');
   }
   function checkContext() {
     const now = scope(), node = input();
@@ -59,11 +60,12 @@ export function createSelectionAssistant({ ctx, getComposer, getWidget, getSetti
     panel?.remove(); panel = document.createElement('section');
     panel.id = 'bw-selection-helper'; panel.setAttribute('role', 'region'); panel.setAttribute('aria-label', 'Buggy selection helper');
     const draft = s.origin === 'draft';
-    panel.innerHTML = `<header><div><small>${draft ? 'A note in the margin' : 'Between the lines'}</small><h2>little word. big possibilities.</h2></div><button type="button" data-help="close" aria-label="Dismiss selection helper">×</button></header>
+    panel.innerHTML = `<header><small>${draft ? 'A note in the margin' : 'Between the lines'}</small><button type="button" data-help="close" aria-label="Dismiss selection helper">×</button></header>
       <p class="bw-selected">${esc(s.text.slice(0, 160))}${s.text.length > 160 ? '…' : ''}</p>
       <p role="status" aria-live="polite">${s.kind === 'word' ? 'Opening the local dictionary…' : 'Pick a tool. Highlighting alone never calls a model or searches online.'}</p>
       <div class="bw-help-result" aria-label="Selection answer"></div>
       <div class="bw-help-actions"><button type="button" data-help="explain">Explain meaning · AI</button><button type="button" data-help="translate">Translate…</button>${draft ? '<button type="button" data-help="polish">Polish draft · AI</button><button type="button" data-help="custom">Custom rewrite…</button>' : ''}<button type="button" data-help="web">Search online…</button><button type="button" data-help="desk">Open writing desk</button><button type="button" data-help="stop" hidden>Stop</button></div>
+      ${draft ? '<p class="bw-help-disclosure">Polish develops novel-like prose using your persona, recent chat, and nearby draft text. It keeps the same POV and events, replaces only this selection, and offers Undo.</p>' : ''}
       <form class="bw-help-form" hidden><label for="bw-help-direction"></label><input id="bw-help-direction" maxlength="1000" autocomplete="off"><p class="bw-help-disclosure"></p><button type="submit">Continue</button></form>
       <div class="bw-help-actions"><button type="button" data-help="copy" hidden>Copy result</button><button type="button" data-help="undo" hidden>Undo replacement</button></div>`;
     document.body.append(panel); theme(); perk(true); position();
@@ -89,7 +91,7 @@ export function createSelectionAssistant({ ctx, getComposer, getWidget, getSetti
       }
       if (active && active.kind !== 'lookup') { status('Stop the current request before starting another.'); return; }
       if (action === 'explain') { run('explain'); return; }
-      if (action === 'polish') { run('transform', 'Polish clarity, flow, and grammar while preserving meaning, voice, point of view, tense, and all details.'); return; }
+      if (action === 'polish') { run('polish'); return; }
       if (['translate', 'custom', 'web'].includes(action)) {
         const form = panel.querySelector('form'), field = form.querySelector('input');
         form.dataset.kind = action; form.hidden = false;
@@ -140,7 +142,7 @@ export function createSelectionAssistant({ ctx, getComposer, getWidget, getSetti
   }
   function run(kind, direction = '') {
     if (!snapshot || snapshot.text.length > 20000) { status('Select up to 20,000 characters.'); return; }
-    if (kind === 'transform' && !valid(snapshot)) { status('The draft changed. Select the passage again before transforming it.'); return; }
+    if (['transform', 'polish'].includes(kind) && !valid(snapshot)) { status('The draft changed. Select the passage again before transforming it.'); return; }
     cancel();
     const id = createRequestId(), settings = getSettings();
     active = { id, kind, captured: snapshot, text: '' }; answer = '';
@@ -151,6 +153,7 @@ export function createSelectionAssistant({ ctx, getComposer, getWidget, getSetti
     send({ type: kind === 'lookup' ? 'bookworm:lookup_word' : kind === 'search' ? 'bookworm:web_search' : 'bookworm:consult', requestId: id,
       query: kind === 'search' ? direction : kind === 'translate' ? `${direction}\n\n${snapshot.text}` : snapshot.text,
       ...(kind !== 'lookup' && kind !== 'search' ? { mode: kind, direction, connectionId: getConnection() || null, timeoutSeconds: settings.timeoutSeconds, extendedOutput: settings.extendedOutput } : {}),
+      ...(kind === 'polish' ? { polishContext: capturePolishContext(ctx, snapshot) } : {}),
     });
   }
   function receive(payload) {
@@ -170,13 +173,16 @@ export function createSelectionAssistant({ ctx, getComposer, getWidget, getSetti
     }
     answer = payload.answer || '';
     const output = panel.querySelector('.bw-help-result');
-    if (answer || payload.sources?.length) output.innerHTML = (request.kind === 'transform' ? `<p class="bw-replacement-preview">${esc(answer)}</p>` : renderMarkdown(answer)) + sourceCards(payload.sources);
+    const rewrite = ['transform', 'polish'].includes(request.kind);
+    if (answer || payload.sources?.length) output.innerHTML = (rewrite ? `<p class="bw-replacement-preview">${esc(answer)}</p>` : renderMarkdown(answer)) + sourceCards(payload.sources);
     panel.querySelector('[data-help=copy]').hidden = !answer;
     status(payload.error || payload.warning || (request.kind === 'search' ? 'Search snippets returned. Open a source to verify the details.' : 'Ready. Nothing has been sent to chat.'));
-    if (request.kind === 'transform' && answer) {
-      if (payload.complete === true && !payload.error && !payload.warning) replace(answer, request.captured);
+    if (rewrite && answer) {
+      if (request.kind === 'polish' && answer.trim() === request.captured.text.trim()) status('The model returned the original wording. Nothing was replaced. Try a different writing model or a more specific Custom rewrite direction.');
+      else if (payload.complete === true && !payload.error && !payload.warning) replace(answer, request.captured);
       else status((payload.error || payload.warning || 'The provider did not confirm a complete answer.') + ' Your draft was not changed.');
     }
+    if (payload.contextNote) status(panel.querySelector('[role=status]').textContent + ' ' + payload.contextNote);
     position(); return true;
   }
   function capture() {

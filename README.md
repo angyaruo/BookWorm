@@ -34,8 +34,26 @@ Highlight a phrase or passage to **Explain meaning**, **Translate**, **Polish
 draft**, or give a **Custom rewrite** direction. For example, “a weary cowboy
 telling the story.” AI actions use your selected writing model and current
 timeout/output settings. No model or online search runs just from highlighting.
-Only the captured passage and your direction are sent to the writing model;
-surrounding private chat/draft text is not added. Local dictionary lookups still
+Translation, explanation and custom rewrites send only the captured passage
+and your direction. **Polish draft** is a context-aware prose rewrite, not a
+grammar pass: it develops rhythm, atmosphere and implied emotional subtext
+while retaining the draft's POV, tense, language, events and endpoint. It must
+not add new actions, dialogue, backstory, responses or plot developments.
+
+On an explicit Polish click, the model also receives up to eight recent chat
+messages (1,500 characters each), up to 1,500 characters of draft on each side
+of the selection, and the active persona's name/title/description (description
+capped at 4,000 characters). Recent messages use Lumiverse's read-only frontend
+API where available, otherwise the visible rendered chat. This is bounded
+recent context, not a full-chat or lorebook retrieval. Grant **Personas** under
+**Settings → Extensions** after updating; BookWorm only reads the selected/active
+persona, never modifies it or reads other persona profiles. Missing persona or
+chat context is disclosed with the result. Other tools never add this context.
+The exact prose-editing prompt is maintained in [src/polish.js](src/polish.js).
+Models can still under-edit or disregard instructions; unchanged output is
+reported without replacing the draft or retrying automatically.
+
+Local dictionary lookups still
 go through your Lumiverse server, not an external dictionary service.
 
 For a composer selection, Translate, Polish, and Custom rewrite replace **only
@@ -199,7 +217,10 @@ Selection/search checks cover Unicode selections, real offline meanings,
 HTTP desktop/mobile viewports, selected-range replacement, native input events,
 Undo, edited drafts, chat-scope changes, IME, truncated responses, cancellation,
 explicit query privacy, source escaping, permission/configuration failures,
-search cancellation and source-bearing history. Model/search responses in the
+search cancellation and source-bearing history. Polish-specific checks cover
+scoped persona reads, absent permissions/context, bounds and system-message
+exclusion, context isolation from other tools, unchanged output, replacement
+and Undo. Model/search responses in the
 browser harness are simulated; no paid provider calls are made by the tests.
 
 Lexical data attribution and license are in [data/README.md](data/README.md) and

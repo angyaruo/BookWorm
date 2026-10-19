@@ -5,6 +5,8 @@ let receive;
 const jobs = new Map();
 window.bookwormTest = { messages:[], manual:false, receive:payload => receive(payload) };
 window.bookwormTest.dispose = setup({
+  state: { get: id => id === 'chat.active' ? {chatId:window.bookwormTest.identity?.chatId} : window.bookwormTest.identity?.personaId },
+  messages: { getRecent: () => window.bookwormTest.history },
   dom:{addStyle(css) { const style=document.createElement('style'); style.textContent=css; document.head.append(style); return () => style.remove(); }},
   onBackendMessage(callback) { receive=callback; return () => { receive=() => {}; }; },
   async sendToBackend(payload) {

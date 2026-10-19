@@ -33,6 +33,8 @@ export async function checkAssistant(browser, url, check) {
         await helper.locator('.bw-help-result section').first().waitFor();
         assert.equal((await lastRequest(page)).type, 'bookworm:lookup_word');
         assert.equal((await lastRequest(page)).query, 'Rain');
+        assert(!(await helper.textContent()).includes('little word. big possibilities.'));
+        assert.equal(await helper.locator('.bw-selected').textContent(),'Rain');
         assert.equal(await helper.locator('[data-synonym]').count(), 0);
         await helper.getByRole('button', {name:'Dismiss selection helper'}).click();
         await page.evaluate(() => document.dispatchEvent(new Event('selectionchange')));
@@ -67,6 +69,7 @@ export async function checkAssistant(browser, url, check) {
         await helper.getByRole('button', {name:'Transform selection',exact:true}).click();
         const request = await lastRequest(page);
         assert.equal(request.mode, 'transform'); assert.match(request.direction, /cowboy/);
+        assert.equal(request.polishContext,undefined);
         assert.equal(request.query, original.slice(8, 28));
         assert.equal((await page.evaluate(() => bookwormTest.messages)).length, before + 1);
         await page.evaluate(id => bookwormTest.receive({type:'bookworm:result_chunk',requestId:id,text:'That moon'}), request.requestId);
@@ -84,7 +87,8 @@ export async function checkAssistant(browser, url, check) {
           const original = 'A passage to polish.';
           await selectDraft(page, original);
           await helper.getByRole('button', {name:'Polish draft · AI'}).click();
-          const request = await lastRequest(page); assert.equal(request.mode, 'transform');
+          const request = await lastRequest(page); assert.equal(request.mode, 'polish');
+          assert.match(request.polishContext.recentMessages[0].content,/library/);
           if (scenario === 'edit') await draft.fill('My newer words.');
           if (scenario === 'stop') await helper.getByRole('button', {name:'Stop',exact:true}).click();
           if (scenario === 'scope') await page.evaluate(() => { document.querySelector('[data-spindle-scope]').setAttribute('data-spindle-scope', 'chat:another:chat_input_tools_left'); });
@@ -93,6 +97,33 @@ export async function checkAssistant(browser, url, check) {
           assert.equal(await draft.inputValue(), scenario === 'edit' ? 'My newer words.' : original);
           if (scenario === 'ime') await draft.dispatchEvent('compositionend');
         }
+      });
+      await check(`${label}: contextual Polish replaces only selected prose and reports unchanged model output`, async () => {
+        await helper.getByRole('button', {name:'Dismiss selection helper'}).click();
+        await page.evaluate(() => { bookwormTest.identity={chatId:'preview',personaId:'mira'}; bookwormTest.history=[{role:'assistant',name:'Mira',content:'A quiet door in the library.'}]; });
+        const original = 'Before. I wait at the door. After.';
+        await selectDraft(page,original,8,27);
+        await helper.getByRole('button',{name:'Polish draft · AI'}).click();
+        let request = await lastRequest(page);
+        assert.equal(request.mode,'polish'); assert.equal(request.query,'I wait at the door.');
+        assert.equal(request.polishContext.beforeSelection,'Before. '); assert.equal(request.polishContext.afterSelection,' After.');
+        assert.equal(request.polishContext.personaId,'mira'); assert.equal(request.polishContext.chatId,'preview');
+        assert.equal(request.polishContext.recentMessages[0].name,'Mira');
+        await deliver(page,request,{answer:request.query,complete:true,contextNote:'No active persona was available.'});
+        assert.equal(await draft.inputValue(),original);
+        assert.match(await helper.locator('[role=status]').textContent(),/original wording/);
+        assert.match(await helper.locator('[role=status]').textContent(),/No active persona/);
+        assert.equal(await helper.locator('[data-help=undo]').isVisible(),false);
+        await helper.getByRole('button',{name:'Polish draft · AI'}).click(); request = await lastRequest(page);
+        await deliver(page,request,{answer:'At the door, I linger in uneasy stillness.',complete:true});
+        assert.equal(await draft.inputValue(),'Before. At the door, I linger in uneasy stillness. After.');
+        await helper.getByRole('button',{name:'Undo replacement'}).click(); assert.equal(await draft.inputValue(),original);
+        await helper.getByRole('button', {name:'Dismiss selection helper'}).click();
+        await selectDraft(page,original,8,27); await helper.getByRole('button',{name:'Polish draft · AI'}).click(); request = await lastRequest(page);
+        await page.evaluate(() => {bookwormTest.identity.personaId='other-persona';});
+        await deliver(page,request,{answer:'An obsolete persona must not replace this.',complete:true});
+        assert.equal(await draft.inputValue(),original);
+        await page.evaluate(() => {delete bookwormTest.identity;delete bookwormTest.history;});
       });
       await check(`${label}: explicit translation, online query privacy, safe sources, and cleanup`, async () => {
         await helper.getByRole('button', {name:'Dismiss selection helper'}).click();
