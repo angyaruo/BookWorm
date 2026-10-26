@@ -1,6 +1,6 @@
 {
   "name": "lumiverse-bookworm",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "type": "module",
   "main": "dist/backend.js",
   "module": "dist/backend.js",

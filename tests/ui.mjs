@@ -4,6 +4,7 @@ import { mkdir } from 'node:fs/promises';
 import { previewServer } from '../scripts/preview.mjs';
 import { checkPreferences } from './preferences-ui.mjs';
 import { checkAssistant } from './assistant-ui.mjs';
+import { checkQuickActions } from './quick-actions-ui.mjs';
 
 const server = previewServer();
 await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
@@ -168,6 +169,7 @@ try {
   }
   await checkPreferences(browser, url, check);
   await checkAssistant(browser, url, check);
+  await checkQuickActions(browser, url, check);
   console.log(`${checks} UI checks passed; screenshots in work/screenshots`);
 } finally {
   await browser.close();

@@ -3,6 +3,7 @@ import { createRequestId } from './request-id.js';
 import { NATIVE_COMPOSER, selectedKind, replacementFor, preserveCase, setDraft } from './selection.js';
 import { sourceCards } from './source-cards.js';
 import { capturePolishContext, polishIdentity } from './polish.js';
+import { directSearchTerms, translationLanguage } from './quick-actions.js';
 
 const MESSAGE = '[data-component="MessageContent"], [class*="_prose_"]';
 const OWN = '#bw-selection-helper, #bw-popup-window, #bw-corner-widget';
@@ -60,11 +61,13 @@ export function createSelectionAssistant({ ctx, getComposer, getWidget, getSetti
     panel?.remove(); panel = document.createElement('section');
     panel.id = 'bw-selection-helper'; panel.setAttribute('role', 'region'); panel.setAttribute('aria-label', 'Buggy selection helper');
     const draft = s.origin === 'draft';
+    const language = translationLanguage(getSettings().translationLanguage);
+    const quickSearch = directSearchTerms(s.text);
     panel.innerHTML = `<header><small>${draft ? 'A note in the margin' : 'Between the lines'}</small><button type="button" data-help="close" aria-label="Dismiss selection helper">×</button></header>
       <p class="bw-selected">${esc(s.text.slice(0, 160))}${s.text.length > 160 ? '…' : ''}</p>
       <p role="status" aria-live="polite">${s.kind === 'word' ? 'Opening the local dictionary…' : 'Pick a tool. Highlighting alone never calls a model or searches online.'}</p>
       <div class="bw-help-result" aria-label="Selection answer"></div>
-      <div class="bw-help-actions"><button type="button" data-help="explain">Explain meaning · AI</button><button type="button" data-help="translate">Translate…</button>${draft ? '<button type="button" data-help="polish">Polish draft · AI</button><button type="button" data-help="custom">Custom rewrite…</button>' : ''}<button type="button" data-help="web">Search online…</button><button type="button" data-help="desk">Open writing desk</button><button type="button" data-help="stop" hidden>Stop</button></div>
+      <div class="bw-help-actions"><button type="button" data-help="explain">Explain meaning · AI</button><button type="button" data-help="translate">${language ? `Translate → ${esc(language)}` : 'Translate…'}</button>${language ? '<button type="button" data-help="language">Change language…</button>' : ''}${draft ? '<button type="button" data-help="polish">Polish draft · AI</button><button type="button" data-help="custom">Custom rewrite…</button>' : ''}<button type="button" data-help="web">${quickSearch ? 'Search online' : 'Search online…'}</button>${quickSearch ? '<button type="button" data-help="web-edit">Edit search…</button>' : ''}<button type="button" data-help="desk">Open writing desk</button><button type="button" data-help="stop" hidden>Stop</button></div>
       ${draft ? '<p class="bw-help-disclosure">Polish develops novel-like prose using your persona, recent chat, and nearby draft text. It keeps the same POV and events, replaces only this selection, and offers Undo.</p>' : ''}
       <form class="bw-help-form" hidden><label for="bw-help-direction"></label><input id="bw-help-direction" maxlength="1000" autocomplete="off"><p class="bw-help-disclosure"></p><button type="submit">Continue</button></form>
       <div class="bw-help-actions"><button type="button" data-help="copy" hidden>Copy result</button><button type="button" data-help="undo" hidden>Undo replacement</button></div>`;
@@ -73,7 +76,7 @@ export function createSelectionAssistant({ ctx, getComposer, getWidget, getSetti
     panel.onpointerdown = e => { if (e.target.closest('button') && e.pointerType === 'mouse') e.preventDefault(); };
     panel.onclick = async e => {
       const button = e.target.closest('button'); if (!button) return;
-      const action = button.dataset.help;
+      let action = button.dataset.help;
       if (button.dataset.synonym) { cancel(); replace(preserveCase(snapshot.text, button.dataset.synonym), snapshot); return; }
       if (action === 'close') { dismiss(); return; }
       if (action === 'desk') { dismiss(); openBook(); return; }
@@ -92,12 +95,16 @@ export function createSelectionAssistant({ ctx, getComposer, getWidget, getSetti
       if (active && active.kind !== 'lookup') { status('Stop the current request before starting another.'); return; }
       if (action === 'explain') { run('explain'); return; }
       if (action === 'polish') { run('polish'); return; }
+      if (action === 'web' && quickSearch) { panel.querySelector('form').hidden = true; run('search', quickSearch); return; }
+      if (action === 'translate' && language) { panel.querySelector('form').hidden = true; run(draft ? 'transform' : 'translate', `Translate into ${language}.`); return; }
+      if (action === 'language') action = 'translate';
+      if (action === 'web-edit') action = 'web';
       if (['translate', 'custom', 'web'].includes(action)) {
         const form = panel.querySelector('form'), field = form.querySelector('input');
         form.dataset.kind = action; form.hidden = false;
         form.querySelector('label').textContent = action === 'web' ? 'Search terms (only this is sent to search)' : action === 'translate' ? 'Target language or register' : 'How should Buggy rewrite this?';
         field.maxLength = action === 'web' ? 500 : 1000;
-        field.value = action === 'web' && s.kind === 'word' ? s.text : '';
+        field.value = action === 'web' ? s.text.trim().slice(0, 500) : action === 'translate' ? language : '';
         field.placeholder = action === 'web' ? 'e.g. Baldur’s Gate mind flayer lore' : action === 'translate' ? 'e.g. French' : 'e.g. A weary cowboy telling the story';
         form.querySelector('.bw-help-disclosure').textContent = action === 'web' ? 'Uses your configured Lumiverse search provider. No draft or chat context is added.' : draft ? 'AI will replace only the captured selection when complete, if the draft is unchanged. Undo is available. Nothing is sent as a chat message.' : 'Sends the selected passage to your writing model. The result stays here.';
         form.querySelector('button').textContent = action === 'web' ? 'Search online' : draft ? 'Transform selection' : 'Translate passage';

@@ -6,6 +6,7 @@ import { createHistory, historyLimit, MAX_HISTORY_LIMIT } from './history.js';
 import { createSelectionAssistant } from './selection-assistant.js';
 import { sourceCards } from './source-cards.js';
 import { NATIVE_COMPOSER, setDraft } from './selection.js';
+import { translationLanguage, translationStarter } from './quick-actions.js';
 
 const MODES = {
   thesaurus: { label: 'Thesaurus', title: 'Find the right word.', description: 'An English dictionary & thesaurus, right here on your desk.', placeholder: 'A word to explore…', number: '01', sample: ['serendipity', 'haunting', 'luminous'] },
@@ -41,6 +42,7 @@ export function setup(ctx) {
     theme: ['paper','dark','system'].includes(savedSettings.theme) ? savedSettings.theme : 'paper',
     historyLimit: historyLimit(savedSettings.historyLimit),
     selectionHelp: savedSettings.selectionHelp !== false,
+    translationLanguage: translationLanguage(savedSettings.translationLanguage),
   };
   const cachedLookups = new Map();
   const domLifetime = new AbortController();
@@ -160,7 +162,7 @@ export function setup(ctx) {
   function selectTab(tab, focus = true) {
     cancel(); cancelWeb(); activeTab = tab;
     fields.webPanel.hidden = true; fields.webQuery.value = ''; fields.webResults.innerHTML = ''; fields.webStatus.textContent = ''; fields.webRun.textContent = 'Search online'; fields.searchBefore.checked = false;
-    fields.input.value = '';
+    fields.input.value = activeTab === 'translate' ? translationStarter(settings.translationLanguage) : '';
     fields.history.hidden = true; fields.settings.hidden = true;
     updateExpanded();
     updateMode(); emptyPage(); pageTurn(); mood('reading');
@@ -180,6 +182,7 @@ export function setup(ctx) {
     if (active) { cancel(true); return; }
     const query = (queryOverride ?? fields.input.value).trim();
     if (!query) { fields.input.focus(); return; }
+    if (activeTab === 'translate' && query === translationStarter(settings.translationLanguage).trim()) { notice('Add the text you want translated below the language.'); fields.input.focus(); return; }
     const searchBefore = activeTab === 'research' && fields.searchBefore.checked;
     const webQuery = fields.webQuery.value.trim();
     if (searchBefore && !webQuery) { fields.webPanel.hidden = false; fields.webQuery.focus(); notice('Enter short search terms below. Only those terms go to your search provider.'); return; }
@@ -298,6 +301,7 @@ export function setup(ctx) {
       <section class="bw-popover" id="bw-settings" aria-label="Book settings" hidden><h2>Book settings</h2>
       <label for="bw-theme">Appearance</label><select id="bw-theme"><option value="paper">Paper · original</option><option value="dark">Dark · midnight library</option><option value="system">Follow system</option></select>
       <label for="bw-selection-help">Selection companion</label><select id="bw-selection-help"><option value="on">On · help with highlighted text</option><option value="off">Off · open the book manually</option></select>
+      <label for="bw-translation-language">Default translation language</label><input id="bw-translation-language" type="text" maxlength="100" placeholder="e.g. Spanish" aria-describedby="bw-language-help"><p id="bw-language-help">Translate highlighted text in one click. The Translator tab starts with this language filled in. Leave blank to choose each time.</p>
       <label for="bw-history-limit">Saved searches</label><input id="bw-history-limit" type="number" min="1" max="${MAX_HISTORY_LIMIT}" step="1" required aria-describedby="bw-history-help"><p id="bw-history-help">Keep 1–${MAX_HISTORY_LIMIT} searches with their full results in this browser. Lowering the limit removes the oldest saved results. Increasing it cannot recover removed results.</p>
       <label for="bw-connection">Writing model</label><select id="bw-connection"></select><label for="bw-length">Answer length</label><select id="bw-length"><option value="standard">Standard</option><option value="extended">Extended · longer passages</option></select><label for="bw-timeout">Time to wait</label><select id="bw-timeout"><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="300">5 minutes</option></select><p>Extended answers allow up to 8,192 output tokens and may cost more. The thesaurus always uses the installed dictionary.</p></section>
       <section class="bw-popover" id="bw-history" aria-label="Recent questions" hidden></section>`;
@@ -312,7 +316,14 @@ export function setup(ctx) {
     find('bw-timeout').value = String(settings.timeoutSeconds);
     find('bw-theme').value = settings.theme;
     find('bw-history-limit').value = String(settings.historyLimit);
+    find('bw-translation-language').value = settings.translationLanguage;
     popup.onchange = e => {
+      if (e.target.id === 'bw-translation-language') {
+        const previous = translationStarter(settings.translationLanguage).trim();
+        settings.translationLanguage = translationLanguage(e.target.value);
+        e.target.value = settings.translationLanguage;
+        if (activeTab === 'translate' && (!fields.input.value.trim() || fields.input.value.trim() === previous)) fields.input.value = translationStarter(settings.translationLanguage);
+      }
       if (e.target.id === 'bw-search-before') { fields.webPanel.hidden = !e.target.checked; return; }
       if (e.target.id === 'bw-selection-help') { settings.selectionHelp = e.target.value === 'on'; if (!settings.selectionHelp) helper?.dismiss(); }
       if (e.target.id === 'bw-connection') {
@@ -385,6 +396,7 @@ export function setup(ctx) {
       }
     };
     updateMode(); emptyPage(); position();
+    if (activeTab === 'translate') fields.input.value = translationStarter(settings.translationLanguage);
     widget.setAttribute('aria-expanded','true'); widget.querySelector('img').src = SPRITES.awake;
     fields.input.focus();
   }
