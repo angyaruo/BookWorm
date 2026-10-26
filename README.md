@@ -30,6 +30,14 @@ grouped by meaning; check inflection before using one. Clicking Buggy while
 the helper is open focuses its additional tools. **Open writing desk** returns
 to the full book. Escape or the × dismisses the helper.
 
+Set **Default translation language** in Book settings (for example, Spanish or
+Brazilian Portuguese). The helper's **Translate → [language]** button then runs
+immediately on click; **Change language…** lets you override it for one request.
+The full Translator tab starts with an editable “Translate into [language]:”
+instruction. Your preference survives book closures and reloads in this browser.
+Leave the setting blank to choose a language each time. Changing the default
+does not overwrite text already written in the Translator tab.
+
 Highlight a phrase or passage to **Explain meaning**, **Translate**, **Polish
 draft**, or give a **Custom rewrite** direction. For example, “a weary cowboy
 telling the story.” AI actions use your selected writing model and current
@@ -77,8 +85,11 @@ saved search history.
 
 **Look this up online…** is available on the AI writing-desk tabs, including
 after an unsuccessful answer. **Search online…** also appears in the selection
-helper. Enter short search terms yourself; long selections are never silently
-used as search queries. Search alone returns up to five clickable, host-provided
+helper. For highlighted words and short phrases (one line, up to 200 characters),
+clicking **Search online** immediately searches that selection. **Edit search…**
+opens the same terms for adjustment. Longer or multi-sentence selections open
+an editable field prefilled with up to 500 characters, and wait for you to submit.
+Highlighting alone never searches. Search alone returns up to five clickable, host-provided
 source links and snippets and uses **no model**. It leaves existing answers and
 your draft unchanged, including when permission, configuration, or upstream
 search fails.

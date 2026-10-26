@@ -298,6 +298,21 @@ function capturePolishContext(ctx, snapshot, doc = document) {
   }) };
 }
 
+// src/quick-actions.js
+function translationLanguage(value) {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, 100) : "";
+}
+function translationStarter(value) {
+  const language = translationLanguage(value);
+  return language ? `Translate into ${language}:
+
+` : "";
+}
+function directSearchTerms(text) {
+  const value = text.trim();
+  return value && value.length <= 200 && !/[\r\n]/.test(value) && selectedKind(value) !== "passage" ? value : "";
+}
+
 // src/selection-assistant.js
 var MESSAGE = '[data-component="MessageContent"], [class*="_prose_"]';
 var OWN = "#bw-selection-helper, #bw-popup-window, #bw-corner-widget";
@@ -387,11 +402,13 @@ function createSelectionAssistant({ ctx, getComposer, getWidget, getSettings, ge
     panel.setAttribute("role", "region");
     panel.setAttribute("aria-label", "Buggy selection helper");
     const draft = s.origin === "draft";
+    const language = translationLanguage(getSettings().translationLanguage);
+    const quickSearch = directSearchTerms(s.text);
     panel.innerHTML = `<header><small>${draft ? "A note in the margin" : "Between the lines"}</small><button type="button" data-help="close" aria-label="Dismiss selection helper">\xD7</button></header>
       <p class="bw-selected">${escapeHtml(s.text.slice(0, 160))}${s.text.length > 160 ? "\u2026" : ""}</p>
       <p role="status" aria-live="polite">${s.kind === "word" ? "Opening the local dictionary\u2026" : "Pick a tool. Highlighting alone never calls a model or searches online."}</p>
       <div class="bw-help-result" aria-label="Selection answer"></div>
-      <div class="bw-help-actions"><button type="button" data-help="explain">Explain meaning \xB7 AI</button><button type="button" data-help="translate">Translate\u2026</button>${draft ? '<button type="button" data-help="polish">Polish draft \xB7 AI</button><button type="button" data-help="custom">Custom rewrite\u2026</button>' : ""}<button type="button" data-help="web">Search online\u2026</button><button type="button" data-help="desk">Open writing desk</button><button type="button" data-help="stop" hidden>Stop</button></div>
+      <div class="bw-help-actions"><button type="button" data-help="explain">Explain meaning \xB7 AI</button><button type="button" data-help="translate">${language ? `Translate \u2192 ${escapeHtml(language)}` : "Translate\u2026"}</button>${language ? '<button type="button" data-help="language">Change language\u2026</button>' : ""}${draft ? '<button type="button" data-help="polish">Polish draft \xB7 AI</button><button type="button" data-help="custom">Custom rewrite\u2026</button>' : ""}<button type="button" data-help="web">${quickSearch ? "Search online" : "Search online\u2026"}</button>${quickSearch ? '<button type="button" data-help="web-edit">Edit search\u2026</button>' : ""}<button type="button" data-help="desk">Open writing desk</button><button type="button" data-help="stop" hidden>Stop</button></div>
       ${draft ? '<p class="bw-help-disclosure">Polish develops novel-like prose using your persona, recent chat, and nearby draft text. It keeps the same POV and events, replaces only this selection, and offers Undo.</p>' : ""}
       <form class="bw-help-form" hidden><label for="bw-help-direction"></label><input id="bw-help-direction" maxlength="1000" autocomplete="off"><p class="bw-help-disclosure"></p><button type="submit">Continue</button></form>
       <div class="bw-help-actions"><button type="button" data-help="copy" hidden>Copy result</button><button type="button" data-help="undo" hidden>Undo replacement</button></div>`;
@@ -405,7 +422,7 @@ function createSelectionAssistant({ ctx, getComposer, getWidget, getSettings, ge
     panel.onclick = async (e) => {
       const button = e.target.closest("button");
       if (!button) return;
-      const action = button.dataset.help;
+      let action = button.dataset.help;
       if (button.dataset.synonym) {
         cancel();
         replace(preserveCase(snapshot.text, button.dataset.synonym), snapshot);
@@ -461,13 +478,25 @@ function createSelectionAssistant({ ctx, getComposer, getWidget, getSettings, ge
         run("polish");
         return;
       }
+      if (action === "web" && quickSearch) {
+        panel.querySelector("form").hidden = true;
+        run("search", quickSearch);
+        return;
+      }
+      if (action === "translate" && language) {
+        panel.querySelector("form").hidden = true;
+        run(draft ? "transform" : "translate", `Translate into ${language}.`);
+        return;
+      }
+      if (action === "language") action = "translate";
+      if (action === "web-edit") action = "web";
       if (["translate", "custom", "web"].includes(action)) {
         const form = panel.querySelector("form"), field = form.querySelector("input");
         form.dataset.kind = action;
         form.hidden = false;
         form.querySelector("label").textContent = action === "web" ? "Search terms (only this is sent to search)" : action === "translate" ? "Target language or register" : "How should Buggy rewrite this?";
         field.maxLength = action === "web" ? 500 : 1e3;
-        field.value = action === "web" && s.kind === "word" ? s.text : "";
+        field.value = action === "web" ? s.text.trim().slice(0, 500) : action === "translate" ? language : "";
         field.placeholder = action === "web" ? "e.g. Baldur\u2019s Gate mind flayer lore" : action === "translate" ? "e.g. French" : "e.g. A weary cowboy telling the story";
         form.querySelector(".bw-help-disclosure").textContent = action === "web" ? "Uses your configured Lumiverse search provider. No draft or chat context is added." : draft ? "AI will replace only the captured selection when complete, if the draft is unchanged. Undo is available. Nothing is sent as a chat message." : "Sends the selected passage to your writing model. The result stays here.";
         form.querySelector("button").textContent = action === "web" ? "Search online" : draft ? "Transform selection" : "Translate passage";
@@ -730,7 +759,8 @@ function setup(ctx) {
     extendedOutput: savedSettings.extendedOutput === true,
     theme: ["paper", "dark", "system"].includes(savedSettings.theme) ? savedSettings.theme : "paper",
     historyLimit: historyLimit(savedSettings.historyLimit),
-    selectionHelp: savedSettings.selectionHelp !== false
+    selectionHelp: savedSettings.selectionHelp !== false,
+    translationLanguage: translationLanguage(savedSettings.translationLanguage)
   };
   const cachedLookups = /* @__PURE__ */ new Map();
   const domLifetime = new AbortController();
@@ -881,7 +911,7 @@ function setup(ctx) {
     fields.webStatus.textContent = "";
     fields.webRun.textContent = "Search online";
     fields.searchBefore.checked = false;
-    fields.input.value = "";
+    fields.input.value = activeTab === "translate" ? translationStarter(settings.translationLanguage) : "";
     fields.history.hidden = true;
     fields.settings.hidden = true;
     updateExpanded();
@@ -911,6 +941,11 @@ ${entry.definition}${entry.examples.length ? "\n" + entry.examples.map((s) => `>
     }
     const query = (queryOverride ?? fields.input.value).trim();
     if (!query) {
+      fields.input.focus();
+      return;
+    }
+    if (activeTab === "translate" && query === translationStarter(settings.translationLanguage).trim()) {
+      notice("Add the text you want translated below the language.");
       fields.input.focus();
       return;
     }
@@ -1071,6 +1106,7 @@ ${entry.definition}${entry.examples.length ? "\n" + entry.examples.map((s) => `>
       <section class="bw-popover" id="bw-settings" aria-label="Book settings" hidden><h2>Book settings</h2>
       <label for="bw-theme">Appearance</label><select id="bw-theme"><option value="paper">Paper \xB7 original</option><option value="dark">Dark \xB7 midnight library</option><option value="system">Follow system</option></select>
       <label for="bw-selection-help">Selection companion</label><select id="bw-selection-help"><option value="on">On \xB7 help with highlighted text</option><option value="off">Off \xB7 open the book manually</option></select>
+      <label for="bw-translation-language">Default translation language</label><input id="bw-translation-language" type="text" maxlength="100" placeholder="e.g. Spanish" aria-describedby="bw-language-help"><p id="bw-language-help">Translate highlighted text in one click. The Translator tab starts with this language filled in. Leave blank to choose each time.</p>
       <label for="bw-history-limit">Saved searches</label><input id="bw-history-limit" type="number" min="1" max="${MAX_HISTORY_LIMIT}" step="1" required aria-describedby="bw-history-help"><p id="bw-history-help">Keep 1\u2013${MAX_HISTORY_LIMIT} searches with their full results in this browser. Lowering the limit removes the oldest saved results. Increasing it cannot recover removed results.</p>
       <label for="bw-connection">Writing model</label><select id="bw-connection"></select><label for="bw-length">Answer length</label><select id="bw-length"><option value="standard">Standard</option><option value="extended">Extended \xB7 longer passages</option></select><label for="bw-timeout">Time to wait</label><select id="bw-timeout"><option value="120">2 minutes</option><option value="180">3 minutes</option><option value="300">5 minutes</option></select><p>Extended answers allow up to 8,192 output tokens and may cost more. The thesaurus always uses the installed dictionary.</p></section>
       <section class="bw-popover" id="bw-history" aria-label="Recent questions" hidden></section>`;
@@ -1083,7 +1119,14 @@ ${entry.definition}${entry.examples.length ? "\n" + entry.examples.map((s) => `>
     find("bw-timeout").value = String(settings.timeoutSeconds);
     find("bw-theme").value = settings.theme;
     find("bw-history-limit").value = String(settings.historyLimit);
+    find("bw-translation-language").value = settings.translationLanguage;
     popup.onchange = (e) => {
+      if (e.target.id === "bw-translation-language") {
+        const previous = translationStarter(settings.translationLanguage).trim();
+        settings.translationLanguage = translationLanguage(e.target.value);
+        e.target.value = settings.translationLanguage;
+        if (activeTab === "translate" && (!fields.input.value.trim() || fields.input.value.trim() === previous)) fields.input.value = translationStarter(settings.translationLanguage);
+      }
       if (e.target.id === "bw-search-before") {
         fields.webPanel.hidden = !e.target.checked;
         return;
@@ -1228,6 +1271,7 @@ ${rawAnswer}` : rawAnswer;
     updateMode();
     emptyPage();
     position();
+    if (activeTab === "translate") fields.input.value = translationStarter(settings.translationLanguage);
     widget.setAttribute("aria-expanded", "true");
     widget.querySelector("img").src = SPRITES.awake;
     fields.input.focus();

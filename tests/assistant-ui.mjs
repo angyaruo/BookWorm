@@ -138,10 +138,10 @@ export async function checkAssistant(browser, url, check) {
         await draft.fill('Keep this newer draft.');
         await helper.getByRole('button', {name:'Undo replacement'}).click();
         assert.equal(await draft.inputValue(),'Keep this newer draft.');
-        await helper.getByRole('button', {name:'Search online…',exact:true}).click();
-        assert.equal(await helper.locator('input').inputValue(), '');
+        await helper.getByRole('button', {name:'Edit search…',exact:true}).click();
+        assert.equal(await helper.locator('input').inputValue(), 'Translate my private prose.');
         await helper.locator('input').fill('public lore term');
-        await helper.getByRole('button', {name:'Search online',exact:true}).click();
+        await helper.locator('form').getByRole('button', {name:'Search online',exact:true}).click();
         request = await lastRequest(page);
         assert.equal(request.type,'bookworm:web_search'); assert.equal(request.query,'public lore term');
         assert(!JSON.stringify(request).includes('private prose'));
